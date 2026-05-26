@@ -35,3 +35,6 @@ desktop.ini
 
 # Context mode cache
 .ctx/
+
+# Planning (personal notes, not for repo)
+planning/

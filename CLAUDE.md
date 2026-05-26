@@ -219,7 +219,7 @@ function executeDeposit(address user, uint256 amount, address vault) external  /
 function revokePermission() external
 ```
 
-**1Shot API** — Use Business API (pre-configure contract method endpoint in dashboard). NOT the permissionless relayer endpoint. Auth: M2M JWT (`POST api.1shotapi.com/v0/token`). Execute: `POST api.1shotapi.com/v0/methods/{METHOD_ID}/execute`. Need: CLIENT_ID + CLIENT_SECRET + funded Sepolia wallet.
+**1Shot API** — Use **Permissionless Relayer**. No API key, no account, no dashboard. POST to `https://relayer.1shotapi.com/relayers` (JSON-RPC). Pass `permissionContext` + `delegationManager` from ERC-7715 response. Verify exact method name from OpenRPC spec at that endpoint.
 
 **ethers.js version:** Use v6. v6 has breaking changes from v5 (BigInt not BigNumber, `provider.getSigner()` is async).
 
@@ -243,7 +243,7 @@ All resolved ✅. See `docs/spikes/` for full research. Summary:
 |-------|--------|-------------|
 | EIP-7702 + MetaMask SAK | ✅ | Sepolia live since Mar 5 2025. Use Viem ESM CDN. Flask 13.9+ required. |
 | ERC-7715 scoped permissions | ✅ | VaultDepositor uses own storage (not DelegationManager). ERC-7715 for UI only. |
-| 1Shot API relayer | ✅ | Use Business API. Configure contract method in dashboard. M2M JWT auth. |
+| 1Shot API relayer | ✅ | Use Permissionless Relayer (`relayer.1shotapi.com/relayers`). No API key. Pure JSON-RPC. |
 | Venice AI capabilities | ✅ | OpenAI-compatible. Model: `llama-3.3-70b`. Use OpenAI SDK via ESM CDN. |
 
 ---
