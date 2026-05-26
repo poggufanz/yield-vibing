@@ -9,31 +9,66 @@ Deadline: 15 Juni 2026 | Prize: $11,000 | Solo
 
 **Core product:** Automated vault deposit flow for yield farmers. User sets scoped permissions once (ERC-7715), agent executes swap → approve → deposit without repeated MetaMask popups.
 
+> **Note:** All docs in `docs/` are written in Indonesian (Bahasa Indonesia).
+
 ---
 
-## Directory Structure (Planned)
+## Current Phase
+
+Timeline: 20 days total (26 Mei – 15 Juni 2026)
+
+| Phase | Days | Focus |
+|-------|------|-------|
+| 1 — Foundation | 1–3 | Solidity review + EIP-7702/ERC-7715 study |
+| 2 — Smart Contract | 4–8 | VaultDepositor.sol + tests |
+| 3 — Integration | 9–13 | 1Shot + frontend + end-to-end Sepolia test |
+| 4 — Polish | 14–17 | Bug fix, Venice AI, demo video |
+| 5 — Buffer | 18–20 | Submission |
+
+**Spikes must be resolved before Phase 2 begins.** Check `docs/spikes/` status first.
+
+---
+
+## Directory Structure
 
 ```
-contracts/
-  VaultDepositor.sol     # Core: permission validation + swap + deposit
-  MockVault.sol          # ERC-4626 mock vault for testnet
+design/                              # UI prototype — WRITTEN, use as implementation reference
+  YIELD VIBING Prototype.html        # v2 current — React 18 + Babel CDN, entrypoint
+  YIELD VIBING Prototype v1.html     # v1 snapshot (AI-slop baseline, do not copy)
+  styles.css                         # v2 design tokens + all components
+  styles-v1.css                      # v1 snapshot only
+  src/
+    app.jsx                          # State machine, right rail, palette picker
+    components.jsx                   # Icon, Sidebar, TopBar, StepRail
+    screens.jsx                      # 6 screen components + RECOMMENDATION data
+    tweaks-panel.jsx                 # Host protocol + Tweak form controls
+    *-v1.jsx                         # v1 snapshots only
+
+contracts/                           # PLANNED — not written yet
+  VaultDepositor.sol
+  MockVault.sol
 test/
-  VaultDepositor.t.sol   # Forge tests
+  VaultDepositor.t.sol
 script/
-  Deploy.s.sol           # Foundry deploy script
-frontend/
-  index.html             # Main UI
-  app.js                 # ethers.js v6 wallet + contract logic
-  venice.js              # Venice AI recommendation module
-  relay.js               # 1Shot API relay module
+  Deploy.s.sol
+frontend/                            # PLANNED — implement from design/ prototype
+  index.html
+  app.js                             # ethers.js v6 wallet + contract logic
+  venice.js
+  relay.js
   style.css
-docs/
-  teknis-arsitektur.md   # Full architecture + ADRs + NFRs + failure modes
-  teknis-blockchain-penggunaan.md  # On-chain vs off-chain, contract scope, audit trail
-  teknis-keamanan-privasi.md       # Security constraints
-  teknis-api-events.md             # Event definitions
-  produk-demo-skenario.md          # Demo script (read before recording)
-  spikes/                # Technical research — resolve before implementing
+docs/                                # All in Indonesian
+  teknis-arsitektur.md
+  teknis-blockchain-penggunaan.md
+  teknis-keamanan-privasi.md
+  teknis-api-events.md
+  teknis-database.md
+  produk-demo-skenario.md            # Demo script — read before recording
+  produk-fitur-lengkap.md
+  produk-user-stories.md
+  bisnis-dampak-model.md
+  bisnis-roadmap-backlog.md
+  spikes/                            # All 4 spikes 🔴 Not Started — resolve before Phase 2
 ```
 
 ---
@@ -65,10 +100,20 @@ forge coverage
 forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC --broadcast --verify
 ```
 
-### Frontend
+### Design Prototype (current)
 
 ```bash
-# Serve locally (plain HTML/JS)
+# Serve the v2 prototype (open in browser)
+npx serve design/
+# Then open: http://localhost:3000/YIELD%20VIBING%20Prototype.html
+```
+
+The prototype uses React 18.3.1 + Babel 7 via CDN. Each `.jsx` file runs as a `<script type="text/babel">` tag and exports globals via `Object.assign(window, { ... })` — no bundler, no imports.
+
+### Frontend (planned — not written yet)
+
+```bash
+# Serve locally once frontend/ exists
 npx serve frontend/
 ```
 
@@ -114,8 +159,8 @@ Venice AI (pre-flow, off-chain)
 
 ### Key Contracts
 
-- **`VaultDepositor.sol`** — `executeDeposit(user, vault, amount, permissionContext)` — validates ERC-7715 scope then executes swap → deposit. CEI pattern enforced.
-- **`MockVault.sol`** — ERC-4626 mock. Implements `deposit()`, `balanceOf()`, `totalAssets()`.
+- **`VaultDepositor.sol`** — `executeDeposit(user, vault, amount, permissionContext)` — validates ERC-7715 scope then executes swap → deposit. CEI pattern + OpenZeppelin ReentrancyGuard enforced.
+- **`MockVault.sol`** — ERC-4626 mock. Implements `deposit()`, `balanceOf()`, `totalAssets()`. APY metadata lives off-chain (frontend mock), not on-chain.
 - **`script/Deploy.s.sol`** — deploys both contracts to Sepolia.
 
 ### VaultDepositor Events (frontend must listen)
@@ -139,13 +184,24 @@ ExecutionFailed(address indexed user, string reason)
 
 ---
 
+## ADR Decisions (affect code choices)
+
+| Decision | Chosen | Rejected | Reason |
+|----------|--------|----------|--------|
+| Contract framework | Foundry | Hardhat | Native Solidity tests, fast, DeFi standard |
+| Frontend | React 18.3.1 + Babel CDN + ethers.js v6 | React + build pipeline | No build step; Babel transpiles JSX inline via `<script type="text/babel">` |
+| AI layer | Venice AI | OpenAI/Anthropic | Required prize track, privacy-first |
+| Vault | MockVault.sol (ERC-4626) | Real protocol | Full demo control, no external deps |
+
+---
+
 ## Key Implementation Notes
 
 **ethers.js version:** Use v6. v6 has breaking changes from v5 (BigInt not BigNumber, `provider.getSigner()` is async, `Contract` import path changed).
 
 **Venice AI:** OpenAI-compatible API (`/api/v1/chat/completions`). Use `response_format: { type: 'json_object' }` for structured vault recommendation output.
 
-**1Shot API:** Sepolia support must be verified (see spike). Handles nonce + gas. `from` in relay tx = relayer address (not user wallet) — this is the demo evidence of gas abstraction.
+**1Shot API:** `from` in relay tx = relayer address (not user wallet) — this is the demo evidence of gas abstraction. Handles nonce + gas automatically.
 
 **Security — enforce in every contract function:**
 - Amount ≤ user-defined maxAmount (revert if exceeded, never silent fail)
@@ -159,7 +215,7 @@ ExecutionFailed(address indexed user, string reason)
 
 ## Technical Spikes
 
-Resolve before implementing. See `docs/spikes/`:
+Resolve before implementing. Check status in each file. See `docs/spikes/`:
 
 | Spike | File | Blocks |
 |-------|------|--------|
@@ -167,6 +223,18 @@ Resolve before implementing. See `docs/spikes/`:
 | ERC-7715 scoped permissions | `architecture-erc7715-scoped-permissions-spike.md` | VaultDepositor design |
 | 1Shot API relayer | `api-1shot-permissionless-relayer-spike.md` | Agent/relay layer |
 | Venice AI capabilities | `api-venice-ai-vault-recommendation-spike.md` | Frontend AI step |
+
+---
+
+## Critical Failure Modes
+
+| Failure | Mitigation |
+|---------|-----------|
+| EIP-7702 not live on Sepolia | Verify Day 1 before writing any contract |
+| MetaMask permission dialog doesn't appear | Test on clean browser profile before recording demo |
+| 1Shot relay timeout | Auto-retry 1x; show clear error to user |
+| Venice AI API key invalid | Test key before demo day |
+| Contract revert on permission exceeded | Design intent — show clear error message, not blank failure |
 
 ---
 
@@ -188,9 +256,11 @@ Resolve before implementing. See `docs/spikes/`:
 
 ## Key Docs
 
-- [Architecture + ADRs + failure modes](docs/teknis-arsitektur.md)
+- [Design system + component spec](DESIGN.md) — read before touching any frontend/UI code
+- [Architecture + ADRs + NFRs + failure modes](docs/teknis-arsitektur.md)
 - [On-chain scope + audit trail + risks](docs/teknis-blockchain-penggunaan.md)
-- [Demo script](docs/produk-demo-skenario.md)
+- [Security constraints](docs/teknis-keamanan-privasi.md)
+- [Demo script](docs/produk-demo-skenario.md) — read before recording
 - MetaMask Smart Accounts Kit: https://docs.metamask.io/wallet/smart-accounts/
 - EIP-7702: https://eips.ethereum.org/EIPS/eip-7702
 - ERC-7715: https://eips.ethereum.org/EIPS/eip-7715
