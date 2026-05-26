@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "skills": {
+    "API Integration Specialist": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "79be72a11a9a834165f0e123a1e6234cb737928c00bbe6612820c74db0c4dd94"
+    },
+    "Accessibility Auditor": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "2baea5fb7c1becea5a7f4b075220ee8a1dcf3cc101859a92430661a3dd5f3351"
+    },
+    "Data Privacy Compliance": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "146751418c73c0a06026fb7c5e9db7229c7c40f4f523631af66f53e5427ccd4c"
+    },
+    "architecture-designer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "computedHash": "baf0fa47580f4e9fd1fd910cbc2e800edace76e3506823110b5ecfd761a9a9bf"
+    },
+    "avoid-ai-writing": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "b55857d2e6f51a8d8ad5ebce735b1a82f7728d0a03a5d731bff39cbde573ec1d"
+    },
+    "better-auth-security-best-practices": {
+      "source": "better-auth/skills",
+      "sourceType": "github",
+      "computedHash": "ed38caef4b297cc399d717258d6ea4e6ecb8894c453c83450064c7e7c6e5cc02"
+    },
+    "blockchain-developer": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "33849fd8d3dbc7e550c19b492f8e140118bd3a58b8c9fcb6389ff07d4b218549"
+    },
+    "cognitive-fluency-psychology": {
+      "source": "flpbalada/my-opencode-config",
+      "sourceType": "github",
+      "computedHash": "191b7c5d22d5afbe622f0a5ab7a8d4712ceb8faf489e2b88c35dc1924a71ca59"
+    },
+    "create-technical-spike": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "e711706b4aebacac01bcc025e19bcf0e88bf784cbe6419ddf07c2be67c501f33"
+    },
+    "ctf-web": {
+      "source": "ljagiello/ctf-skills",
+      "sourceType": "github",
+      "computedHash": "aeeadc00edfe95d498a3b3b685dcb776975588bf98b8432e44ef647469ecad38"
+    },
+    "database-schema-designer": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "computedHash": "f23c909d45c6207e974dbce0db4c648de13d586abb37057cfec34d62f25bb526"
+    },
+    "finance-expert": {
+      "source": "personamanagmentlayer/pcl",
+      "sourceType": "github",
+      "computedHash": "83ff6d943fe47f1cec6c79b2d364303c2e058366c3fdfc6bc5938539cc914b33"
+    },
+    "humanizer": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "computedHash": "c948e831d5fdfbe2e1fbbba1ebf8ab410a8f077ba529ddd522fd9ae40e6cc653"
+    },
+    "machine-learning-engineer": {
+      "source": "404kidwiz/claude-supercode-skills",
+      "sourceType": "github",
+      "computedHash": "9ee82bcdf7af1efce0672befbf37187806dcd31f11a54284489b79b15b1265fb"
+    },
+    "mobile-android-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "f664cf000475eb1fb2e61dfdbdfd311cca595154ddc63e76ac6444a07b86346a"
+    },
+    "mobile-developer": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "52b357d99db5a518d8104617171bdb32877fec2a7070b3c99f2d9cbe3861bc21"
+    },
+    "next-best-practices": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "c31ddd68ba5798a79a516c619b1e1fc4408cc4876ad600fefa4f5add4425719d"
+    },
+    "privacy-policy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "4f79d99d3bc7d1a14108bbff25d28cce0f86a70d89edb1ef908f30001b176a9c"
+    },
+    "prompt-engineering": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "4a25e9e94d34856b6b61403afdbebf4483204c6e992ed3059090b6f82cddf6ed"
+    },
+    "prompt-optimizer": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "eac7e4542b5cd1613ccf46e1d85ffd154cebf2de91e279bdf6508a7f66e04dcc"
+    },
+    "psychologist-analyst": {
+      "source": "rysweet/amplihack",
+      "sourceType": "github",
+      "computedHash": "191b7c5d22d5afbe622f0a5ab7a8d4712ceb8faf489e2b88c35dc1924a71ca59"
+    },
+    "rag-architect": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "computedHash": "9e73a9440ca7f419a192901bf38e8c61e7449e0e9340b6f3507b85ca249dce42"
+    },
+    "rag-implementation": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "0a68c672384c5c6aa7acb286c18f8eb9dce53a058062a8951ac0adca4d01d4ea"
+    },
+    "security-review": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "77465a6213cf679cac8aa50ee3b9ba8438b44fcf7bd7f082ed4f16e9db846acd"
+    },
+    "senior-data-scientist": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "42804288d4f9036199a5e8ff73ceda214ae8c12bf04e712577b0eb9751c69710"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "6337038fe1fe6bbe1b9f252ab678ee575859190bab6f0f246f4061824eb40875"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "9fb08ab39585f6f770d0c1c735f83e619aba2089d7ad50ba2a305eff715e08b9"
+    },
+    "web3-expert": {
+      "source": "oimiragieo/agent-studio",
+      "sourceType": "github",
+      "computedHash": "91d65af034f2e8e9fe9e324cc36b7022b82ec21d92a6262f204d8174df30a0cb"
+    },
+    "web3-frontend": {
+      "source": "pluginagentmarketplace/custom-plugin-blockchain",
+      "sourceType": "github",
+      "computedHash": "57a9ea01b1aa16a165739dbe6261ed7410b3a42514d0c28ed665513433234f08"
+    },
+    "writing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/writing-plans/SKILL.md",
+      "computedHash": "2b986445454a025ca2c3839f8a2024747e8cce0517948437232cd113d2719060"
+    },
+    "docs-generator": {
+      "source": "poggufanz/docs-generator-skill",
+      "sourceType": "github",
+      "skillPath": "skills/docs-generator/SKILL.md",
+      "computedHash": "d1cbbf0a9e5b8c3e7a1e5b2c3a4f5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4"
+    }
+  }
+}
