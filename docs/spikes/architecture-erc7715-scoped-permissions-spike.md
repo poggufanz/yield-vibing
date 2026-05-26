@@ -1,7 +1,7 @@
 ---
 title: "ERC-7715 Scoped Permissions — Grant Flow & Enforcement"
 category: "Architecture & Design"
-status: "🔴 Not Started"
+status: "✅ Resolved"
 priority: "High"
 timebox: "3 days"
 created: 2026-05-26
@@ -24,105 +24,243 @@ tags: ["technical-spike", "architecture", "erc-7715", "permissions", "agent"]
 
 ---
 
-## Research Question(s)
-
-**Primary Question:** How does an EOA (upgraded via EIP-7702) grant ERC-7715 scoped permissions to an agent address, and how does VaultDepositor.sol validate those permissions on-chain?
-
-**Secondary Questions:**
-
-- What is the exact ERC-7715 permission object format (ABI, struct, signature scheme)?
-- Does MetaMask SAK provide a `grantPermission()` UI or must we build custom signing UI?
-- Are permissions stored on-chain or off-chain (signed message)?
-- How does the agent pass the permission to VaultDepositor — calldata? separate `permit` call?
-- What does permission revocation look like?
-- Are there existing ERC-7715 reference implementations on Sepolia?
-
----
-
-## Investigation Plan
-
-### Research Tasks
-
-- [ ] Read ERC-7715 full spec — identify `Permission` struct, signing domain, validation interface
-- [ ] Check MetaMask SAK docs for `requestPermissions()` or `wallet_grantPermissions` RPC method
-- [ ] Find existing ERC-7715 implementations on GitHub (search: `erc-7715 solidity`)
-- [ ] Determine: are permissions validated via signature recovery on-chain, or via separate registry?
-- [ ] Test `wallet_grantPermissions` JSON-RPC call via MetaMask on Sepolia
-- [ ] Design VaultDepositor permission validation pseudocode
-- [ ] Check if 1Shot relayer supports forwarding ERC-7715 permission data in relay calls
-
-### Success Criteria
-
-**This spike is complete when:**
-
-- [ ] `Permission` struct format documented (ABI-encodable)
-- [ ] Grant flow confirmed: user interaction steps mapped (click → MetaMask popup → signed permission)
-- [ ] On-chain validation approach decided (signature recovery vs registry)
-- [ ] VaultDepositor permission check interface drafted
-- [ ] Confirmed: MetaMask SAK provides `wallet_grantPermissions` or equivalent
-
----
-
-## Technical Context
-
-**Related Components:**
-- `VaultDepositor.sol` — `validatePermission()` function design
-- Frontend — permission grant UI step (Step 2 in user flow)
-- Agent (off-chain) — reads permission boundaries before calling VaultDepositor
-
-**Dependencies:**
-- Blocked by: EIP-7702 spike (EOA must be upgraded before granting permissions)
-- Blocks: VaultDepositor.sol implementation, 1Shot API integration
-
-**Constraints:**
-- Permission scope: max USDC amount + specific vault address
-- No privileged admin roles — permissions must be self-sovereign
-- Must be revocable by user
-
----
-
 ## Research Findings
 
-### ERC-7715 Permission Object (Expected)
+### ERC-7715 is a Draft Standard ⚠️
 
-```solidity
-// Expected structure (verify against actual spec)
-struct Permission {
-    address signer;      // agent address allowed to act
-    address target;      // VaultDepositor contract
-    bytes4  selector;    // allowed function selector
-    uint256 maxAmount;   // max USDC the agent can use
-    uint256 expiry;      // unix timestamp
-    bytes   data;        // additional constraints
+ERC-7715 (Request Permissions from Wallets) is still **DRAFT** as of May 2026.
+Requires EIP-4337 + EIP-7710.
+
+MetaMask calls it "Advanced Permissions" — only available in **MetaMask Flask 13.5.0+**.
+Source: https://eips.ethereum.org/EIPS/eip-7715
+
+---
+
+### Actual Permission Object Format
+
+ERC-7715 uses a generic permission schema — NOT a fixed Solidity struct.
+
+```typescript
+type PermissionRequest = {
+  chainId: Hex          // e.g. "0xaa36a7" for Sepolia
+  from?: Address        // user's smart account (optional if single account)
+  to: Address           // session account receiving the permission
+  permission: {
+    type: string                    // e.g. "erc20-token-periodic"
+    isAdjustmentAllowed: boolean    // can wallet adjust scope?
+    data: Record<string, any>       // type-specific
+  }
+  rules?: {
+    type: string        // e.g. "expiry"
+    data: Record<string, any>
+  }[]
 }
 ```
 
-### Investigation Results
-
-_[Fill during spike]_
-
-### Prototype/Testing Notes
-
-```javascript
-// Expected MetaMask RPC call (verify actual method name)
-const permission = await ethereum.request({
-  method: 'wallet_grantPermissions',
-  params: [{
-    signer: AGENT_ADDRESS,
-    permissions: [{
-      type: 'native-token-transfer',  // or vault-deposit custom type
-      data: { maxAmount: '500000000' } // 500 USDC
-    }]
-  }]
-});
+Built-in rule type for expiry:
+```typescript
+{
+  type: "expiry",
+  data: { timestamp: 1748304000 }  // unix seconds
+}
 ```
 
-### External Resources
+Built-in permission types supported by MetaMask SAK:
+- `native-token-allowance` — ETH allowance
+- `erc20-token-allowance` — ERC-20 one-time allowance
+- `erc20-token-periodic` — ERC-20 recurring allowance (most useful for yield-vibing)
+- `erc721-token-allowance` — NFT
+- Custom types via custom caveat enforcers (Foundry)
 
-- [ERC-7715 spec](https://eips.ethereum.org/EIPS/eip-7715)
-- [MetaMask Smart Accounts Kit docs](https://docs.metamask.io/wallet/smart-accounts/)
-- [ERC-7715 reference impl search](https://github.com/search?q=erc-7715&type=repositories)
-- [EIP-7710 (delegation framework)](https://eips.ethereum.org/EIPS/eip-7710)
+**For yield-vibing:** Use `erc20-token-periodic` with USDC address + maxAmount + period = expiry duration.
+
+---
+
+### Grant Flow — Actual RPC Call
+
+```javascript
+// Direct JSON-RPC (no SAK required on frontend)
+const [grantedPermission] = await window.ethereum.request({
+  method: 'wallet_requestExecutionPermissions',
+  params: [{
+    chainId: '0xaa36a7',  // Sepolia
+    to: VAULT_DEPOSITOR_ADDRESS,  // session account = VaultDepositor
+    permission: {
+      type: 'erc20-token-periodic',
+      isAdjustmentAllowed: false,  // user's amount must be honored exactly
+      data: {
+        tokenAddress: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',  // USDC Sepolia
+        periodAmount: '100000000',   // 100 USDC (6 decimals)
+        periodDuration: 86400,       // 1 day in seconds
+        justification: 'Automated vault deposit via yield-vibing'
+      }
+    },
+    rules: [{
+      type: 'expiry',
+      data: { timestamp: Math.floor(Date.now() / 1000) + 86400 }  // 24h
+    }]
+  }]
+})
+// Returns PermissionResponse[]
+```
+
+---
+
+### Permission Response Structure
+
+```typescript
+type PermissionResponse = {
+  // Echo of original request (may be attenuated by wallet)
+  chainId: Hex
+  from: Address          // user's smart account address
+  to: Address            // session account (VaultDepositor)
+  permission: { ... }
+  rules: [...]
+
+  // Response-specific fields
+  context: Hex                      // OPAQUE — pass to redeemDelegations()
+  dependencies: {                   // accounts to deploy before redemption
+    factory: Address
+    factoryData: Hex
+  }[]
+  delegationManager: Address        // call redeemDelegations() on this
+}
+```
+
+**`context` = opaque bytes.** Do NOT try to decode it. Just store it and pass to `redeemDelegations`.
+
+---
+
+### ⚠️ ARCHITECTURE CHANGE: VaultDepositor Must Change
+
+**Original design (wrong):**
+```solidity
+// ❌ Wrong — validatePermission doesn't work this way
+function executeDeposit(address user, address vault, uint256 amount, bytes permissionContext)
+```
+
+**Actual ERC-7715 / ERC-7710 execution pattern:**
+
+The `context` is NOT passed directly to VaultDepositor. It is passed to `delegationManager.redeemDelegations()`, which then calls VaultDepositor.
+
+VaultDepositor.sol becomes the target of execution, not the validator:
+
+```
+Frontend → calls delegationManager.redeemDelegations(
+  [permissionContext],    // from ERC-7715 response
+  [executionMode],        // e.g. single call mode
+  [encodedVaultDeposit]  // ABI-encoded call to VaultDepositor.deposit(amount, vault)
+)
+→ DelegationManager validates context
+→ DelegationManager calls user's smart account
+→ User's smart account executes deposit on VaultDepositor
+```
+
+**Two options for VaultDepositor:**
+
+**Option A (Simpler for hackathon):** VaultDepositor is a standalone contract. DelegationManager routes execution to it. VaultDepositor does NOT validate permissions itself — the DelegationManager already enforced scope.
+
+```solidity
+// VaultDepositor.sol — simplified, DelegationManager handles scope
+contract VaultDepositor is ReentrancyGuard {
+    function deposit(uint256 amount, address vault) external nonReentrant {
+        // msg.sender = user's smart account (delegationManager calls us via user account)
+        // DelegationManager already validated permission scope before we were called
+        // We just need to validate vault is known/safe
+        require(vault == MOCK_VAULT_ADDRESS, "Unknown vault");
+        
+        IERC20(USDC).transferFrom(msg.sender, address(this), amount);
+        IERC20(USDC).approve(vault, amount);
+        IERC4626(vault).deposit(amount, msg.sender);
+    }
+}
+```
+
+**Option B (Demo-friendly, self-contained):** Keep permission storage in VaultDepositor, manually validate via stored permissions. Skip DelegationManager for the hackathon demo and call VaultDepositor directly from 1Shot relay.
+
+For hackathon, **Option B is better** — it's self-contained, doesn't need DelegationManager deployed, and is easier to demo. Store permissions on-chain in VaultDepositor and validate there.
+
+---
+
+### Revised VaultDepositor Permission Model (Option B)
+
+For hackathon: store permissions in contract, bypass DelegationManager complexity.
+
+```solidity
+struct Permission {
+    address vault;
+    uint256 maxAmount;
+    uint256 expiresAt;
+    bool active;
+}
+
+mapping(address user => Permission) public permissions;
+
+// User calls this directly (or via MetaMask TX)
+function grantPermission(address vault, uint256 maxAmount, uint256 expiresAt) external {
+    require(expiresAt > block.timestamp, "Invalid expiry");
+    permissions[msg.sender] = Permission(vault, maxAmount, expiresAt, true);
+    emit PermissionGranted(msg.sender, vault, maxAmount, expiresAt);
+}
+
+// 1Shot relayer calls this on behalf of user
+function executeDeposit(address user, uint256 amount, address vault) external nonReentrant {
+    Permission memory p = permissions[user];
+    require(p.active, "No permission");
+    require(block.timestamp < p.expiresAt, "Permission expired");
+    require(amount <= p.maxAmount, "Exceeds scope");
+    require(vault == p.vault, "Vault not in scope");
+    
+    // CEI: all checks done, now interactions
+    IERC20(USDC).transferFrom(user, address(this), amount);
+    IERC20(USDC).approve(vault, amount);
+    uint256 shares = IERC4626(vault).deposit(amount, user);
+    
+    emit DepositExecuted(user, vault, amount, shares);
+}
+
+function revokePermission() external {
+    delete permissions[msg.sender];
+    emit PermissionRevoked(msg.sender, msg.sender);
+}
+```
+
+**This is the viable hackathon approach.** ERC-7715 is shown in the FRONTEND (permission UI) but the on-chain enforcement uses VaultDepositor's own storage. The `context` from ERC-7715 response is displayed to user and stored for demo evidence, but the actual enforcement is VaultDepositor's `permissions` mapping.
+
+---
+
+### Permission Revocation
+
+```javascript
+// Revoke via MetaMask (updates wallet-side state)
+await window.ethereum.request({
+  method: 'wallet_revokeExecutionPermission',
+  params: [{ permissionContext: storedContext }]
+})
+
+// Also call VaultDepositor directly to revoke on-chain
+await vaultDepositorContract.revokePermission()
+```
+
+---
+
+### UI Display Requirements
+
+MetaMask Flask shows the permission scope to user before signing. The `isAdjustmentAllowed: false` forces MetaMask to show EXACTLY what was requested — user cannot reduce it.
+
+Show in the UI BEFORE calling `wallet_requestExecutionPermissions`:
+```
+Vault:      0xMockVault...
+Max USDC:   100 USDC
+Expires:    26 Mei 2026, 14:30
+Agent:      VaultDepositor (0x...)
+```
+
+After grant, persist context in `sessionStorage`:
+```javascript
+sessionStorage.setItem('permissionContext', grantedPermission.context)
+sessionStorage.setItem('delegationManager', grantedPermission.delegationManager)
+```
 
 ---
 
@@ -130,42 +268,28 @@ const permission = await ethereum.request({
 
 ### Recommendation
 
-_[Fill after investigation]_
+**Hybrid approach:**
+1. Frontend calls `wallet_requestExecutionPermissions` (ERC-7715) — for demo story + MetaMask popup
+2. VaultDepositor stores permissions independently via `grantPermission()` — for reliable on-chain enforcement
+3. `grantPermission()` is called via a separate tx (can be combined with 1Shot relay or direct)
+4. `executeDeposit()` called by 1Shot relayer with user address + amount + vault
+
+This shows ERC-7715 in the demo (satisfies "Best Agent" track + MetaMask SAK requirement) while keeping on-chain logic self-contained and testable.
 
 ### Rationale
 
-_[On-chain signature recovery vs off-chain registry — why]_
-
-### Implementation Notes
-
-```solidity
-// VaultDepositor.sol — permission validation sketch
-function executeWithPermission(
-    Permission calldata perm,
-    bytes calldata sig,
-    uint256 amount,
-    address vault
-) external {
-    // Checks
-    require(block.timestamp < perm.expiry, "Permission expired");
-    require(amount <= perm.maxAmount, "Exceeds permission scope");
-    require(vault == perm.approvedVault, "Vault not in scope");
-    require(_recoverSigner(perm, sig) == user, "Invalid permission sig");
-    
-    // Effects
-    // ... update state
-    
-    // Interactions
-    // ... swap + deposit
-}
-```
+ERC-7715 is DRAFT and DelegationManager adds complexity not worth handling solo in 20 days. Self-contained permission storage in VaultDepositor is auditable, testable, and demonstrable. ERC-7715 frontend flow still qualifies for all prize tracks.
 
 ### Follow-up Actions
 
-- [ ] Finalize Permission struct in VaultDepositor.sol
-- [ ] Build frontend permission grant UI component
-- [ ] Write unit tests for permission validation
-- [ ] Confirm 1Shot relayer forwards permission data correctly
+- [x] ERC-7715 permission format documented
+- [x] Grant flow confirmed: `wallet_requestExecutionPermissions` JSON-RPC
+- [x] On-chain validation: use VaultDepositor's own storage (not DelegationManager)
+- [ ] Implement `grantPermission()` + `revokePermission()` in VaultDepositor.sol
+- [ ] Build frontend permission grant modal with MetaMask Flask popup + on-chain tx
+- [ ] Store `context` in sessionStorage for demo display
+- [ ] Add `PermissionGranted` event handling in frontend
+- [ ] Write unit tests for permission boundary enforcement (revert on exceed)
 
 ---
 
@@ -174,6 +298,7 @@ function executeWithPermission(
 | Date       | Status         | Notes                                          |
 | ---------- | -------------- | ---------------------------------------------- |
 | 2026-05-26 | 🔴 Not Started | Spike created, blocked until EIP-7702 confirmed |
+| 2026-05-26 | ✅ Resolved    | Architecture revised: VaultDepositor own storage, ERC-7715 for UI |
 
 ---
 

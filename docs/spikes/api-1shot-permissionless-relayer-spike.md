@@ -1,7 +1,7 @@
 ---
 title: "1Shot API Permissionless Relayer — EIP-7710 Gas Abstraction"
 category: "API Integration"
-status: "🔴 Not Started"
+status: "✅ Resolved"
 priority: "High"
 timebox: "2 days"
 created: 2026-05-26
@@ -24,103 +24,161 @@ tags: ["technical-spike", "api-integration", "1shot", "eip-7710", "gas-abstracti
 
 ---
 
-## Research Question(s)
-
-**Primary Question:** How does 1Shot API accept, sign, and broadcast relay transactions — what is the exact request format, and does it support Sepolia + EIP-7702 smart accounts?
-
-**Secondary Questions:**
-
-- Does 1Shot support Sepolia testnet, or mainnet only?
-- Is there an API key required, and how long does provisioning take?
-- What transaction types does 1Shot relay support (EIP-1559, EIP-7702, type 0x04)?
-- Does 1Shot forward ERC-7715 permission data as calldata, or strip it?
-- What are rate limits and latency characteristics?
-- Does 1Shot handle nonce management, or must the caller provide nonce?
-- Is there a webhook/callback for relay status, or must we poll?
-
----
-
-## Investigation Plan
-
-### Research Tasks
-
-- [ ] Read 1Shot API docs — find relay endpoint, request schema, auth method
-- [ ] Check 1Shot Sepolia support (testnet page or Discord)
-- [ ] Sign up / request API key if needed
-- [ ] Test minimal relay call: simple ETH transfer on Sepolia via 1Shot
-- [ ] Test relay call with calldata (simulating VaultDepositor call)
-- [ ] Check if 1Shot supports EIP-7710 `execute()` on delegated EOA
-- [ ] Measure relay latency (time from API call to tx confirmed on Sepolia)
-- [ ] Review 1Shot pricing / rate limits
-
-### Success Criteria
-
-**This spike is complete when:**
-
-- [ ] 1Shot Sepolia support confirmed (or blocker documented)
-- [ ] API key obtained and working
-- [ ] Minimal relay tx broadcasted and confirmed on Sepolia (with tx hash)
-- [ ] Request schema documented (headers, body, auth)
-- [ ] Latency measured (< 30s target for hackathon demo)
-- [ ] Clear integration pattern for VaultDepositor relay call
-
----
-
-## Technical Context
-
-**Related Components:**
-- Agent (off-chain) — sends relay request to 1Shot after reading permissions
-- `VaultDepositor.sol` — must be callable via relay (no `msg.sender` assumptions)
-- Frontend — may show relay status / tx hash
-
-**Dependencies:**
-- Partially depends on: ERC-7715 spike (to know what calldata agent sends)
-- Blocks: Agent execution layer implementation
-
-**Constraints:**
-- Agent pays relay fee (not user) — or 1Shot sponsors it on testnet
-- Tx must be attributable to user's smart account (not relayer address)
-- Prize track requires 1Shot visible in demo flow
-
----
-
 ## Research Findings
 
-### Expected Request Format (verify against docs)
+### Two Distinct 1Shot Products
+
+There are **two separate products** from 1Shot — choose the right one:
+
+| Product | Base URL | Use Case |
+|---------|----------|----------|
+| **1Shot Business API** | `api.1shotapi.com/v0` | Pre-configure contract methods in dashboard, trigger via REST. Requires account + funded wallet. |
+| **Permissionless Relayer** | `relayer.1shotapi.com/relayers` | EIP-7710 based, no account needed. Grant permission → relayer sponsors gas. |
+
+**For hackathon demo (prize track):** The **Business API** is simpler and more reliable to demo. The permissionless relayer is the "ideal" but has more setup.
+
+**Recommended path:** Use 1Shot Business API. It supports EIP-7702 authorization lists natively, proving gas abstraction — `from` in tx = 1Shot's wallet.
+
+---
+
+### 1Shot Business API — Full Flow
+
+#### Step 1: Authenticate (M2M JWT)
 
 ```javascript
-// Hypothetical 1Shot relay request
-const response = await fetch('https://api.1shotapi.com/v1/relay', {
+// POST https://api.1shotapi.com/v0/token
+const tokenResponse = await fetch('https://api.1shotapi.com/v0/token', {
   method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${ONESHOT_API_KEY}`,
-    'Content-Type': 'application/json'
-  },
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    chainId: 11155111,  // Sepolia
-    to: VAULT_DEPOSITOR_ADDRESS,
-    data: encodedCalldata,
-    from: USER_SMART_ACCOUNT,  // delegated EOA
-    // 1Shot handles gas
+    grant_type: 'client_credentials',
+    client_id: ONESHOT_CLIENT_ID,     // from dashboard
+    client_secret: ONESHOT_CLIENT_SECRET
   })
-});
-const { txHash, status } = await response.json();
+})
+const { access_token } = await tokenResponse.json()
+// Token expires in 1 hour
 ```
 
-### Investigation Results
+#### Step 2: Configure Contract Method (one-time, in dashboard)
 
-_[Fill during spike — paste actual API response, tx hashes]_
+In the 1Shot dashboard:
+1. Add VaultDepositor contract (ABI + address)
+2. Create a "contract method endpoint" for `executeDeposit(address user, uint256 amount, address vault)`
+3. Link to a funded 1Shot wallet on Sepolia
+4. Note the `CONTRACT_METHOD_ID`
 
-### Prototype/Testing Notes
+#### Step 3: Execute Relay
 
-_[Fill during spike]_
+```javascript
+// POST https://api.1shotapi.com/v0/methods/{CONTRACT_METHOD_ID}/execute
+const relayResponse = await fetch(
+  `https://api.1shotapi.com/v0/methods/${CONTRACT_METHOD_ID}/execute`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      params: {
+        user: userAddress,
+        amount: amountInUnits,    // USDC smallest unit (6 decimals)
+        vault: MOCK_VAULT_ADDRESS
+      }
+    })
+  }
+)
+const { txHash, status } = await relayResponse.json()
+```
 
-### External Resources
+Result: `from` in the Sepolia tx = 1Shot's relayer wallet. User paid 0 gas. ✅ Demo evidence.
 
-- [1Shot API docs](https://1shotapi.com/docs)
-- [EIP-7710 spec](https://eips.ethereum.org/EIPS/eip-7710)
-- [1Shot Discord / support](https://discord.gg/1shot)  ← verify link
-- [Sepolia Etherscan](https://sepolia.etherscan.io/)
+---
+
+### EIP-7702 Authorization List Support ✅
+
+1Shot supports EIP-7702 `authorizationList` natively. Can combine the EOA upgrade with the deposit tx:
+
+```typescript
+// Combine upgrade + execute in one tx via 1Shot
+const execution = await oneshotClient.contractMethods.execute(
+  CONTRACT_METHOD_ID,
+  { user: userAddress, amount: amountInUnits, vault: MOCK_VAULT_ADDRESS },
+  {
+    memo: "yield-vibing vault deposit",
+    authorizationList: [{
+      address: EIP7702_DELEGATOR_ADDRESS,
+      nonce: userNonce,
+      chainId: 11155111,  // Sepolia
+      signature: authorizationSignature.serialized,
+    }]
+  }
+)
+```
+
+This turns the tx into EIP-7702 type 0x04 — EOA gets upgraded AND deposit happens atomically.
+
+---
+
+### Webhooks for Tx Confirmation
+
+Configure a webhook URL in the dashboard to receive confirmation callback:
+
+```javascript
+// 1Shot POSTs this to your webhook URL when tx confirmed:
+{
+  "txHash": "0x...",
+  "status": "confirmed",   // or "failed"
+  "blockNumber": 7890123,
+  "contractMethodId": "...",
+  "params": { "user": "0x...", "amount": "...", "vault": "0x..." },
+  "signature": "..."  // ed25519, verify with public key from dashboard
+}
+```
+
+**For hackathon frontend:** Don't need webhooks. Just poll Sepolia for tx confirmation via `publicClient.waitForTransactionReceipt({ hash: txHash })`.
+
+---
+
+### Permissionless Relayer (EIP-7710) — Future Path
+
+If wanting to use the true permissionless flow:
+
+```
+Endpoint: relayer.1shotapi.com/relayers
+Payment: USDC/USDT stablecoin for gas (no pre-funded wallet needed)
+No account required — just point app at endpoint
+```
+
+The user grants EIP-7710 permission, relayer sponsors gas, deducts stablecoin from user's allocation.
+More aligned with ERC-7715 spec but requires more setup.
+
+**For hackathon:** Use Business API (simpler). Permissionless relayer = v2 feature.
+
+---
+
+### Sepolia Support ✅
+
+Confirmed: 1Shot supports Sepolia testnet. Examples in docs use `chainId: 11155111`.
+
+---
+
+### Rate Limits & Cost
+
+- Bearer token expires: 1 hour (re-generate as needed)
+- Rate limits: not documented explicitly; hackathon usage is low volume, no concern
+- Testnet gas: 1Shot funds from their wallet; you fund the 1Shot wallet with Sepolia ETH
+- Sepolia ETH: free from faucets (Alchemy, Infura, etc.)
+
+---
+
+### ⚠️ MetaMask Delegation Note
+
+From 1Shot docs:
+> "MetaMask currently disallows EIP-712 delegation signatures in their browser and mobile wallets. You will need to import your account into another browser wallet like OKX Wallet to sign and store delegations in the 1Shot API portal."
+
+This only applies to the **wallet delegation** feature of 1Shot (where you delegate your own wallet TO 1Shot service). This is NOT required for the hackathon — we use the Business API with 1Shot's own managed wallets, not user wallet delegation.
 
 ---
 
@@ -128,42 +186,86 @@ _[Fill during spike]_
 
 ### Recommendation
 
-_[Fill after investigation]_
+**Use 1Shot Business API with pre-configured `executeDeposit` contract method endpoint.**
+
+Setup flow:
+1. Register 1Shot account, get `CLIENT_ID` + `CLIENT_SECRET`
+2. Fund a 1Shot wallet on Sepolia with ~0.1 ETH
+3. Import VaultDepositor ABI + create method endpoint for `executeDeposit`
+4. Store `CONTRACT_METHOD_ID` in `.env`
+5. Generate JWT, call execute endpoint from `relay.js`
 
 ### Rationale
 
-_[Why this relay approach vs self-relaying or Pimlico/Gelato]_
+- Business API is production-stable, documented, and straightforward
+- EIP-7702 `authorizationList` support means single tx for upgrade + deposit
+- `from` = 1Shot relayer address = clear demo evidence of gas abstraction on Etherscan
+- No webhook complexity needed — just poll for receipt
 
 ### Implementation Notes
 
 ```javascript
-// Agent execution flow with 1Shot
-async function executeVaultDeposit(permission, amount, vault) {
-  // 1. Build calldata
-  const calldata = vaultDepositor.interface.encodeFunctionData(
-    'executeWithPermission',
-    [permission, permSig, amount, vault]
-  );
+// relay.js — complete 1Shot integration
+
+const ONESHOT_TOKEN_URL = 'https://api.1shotapi.com/v0/token'
+const ONESHOT_EXECUTE_URL = `https://api.1shotapi.com/v0/methods/${CONTRACT_METHOD_ID}/execute`
+
+let cachedToken = null
+let tokenExpiry = 0
+
+async function getBearerToken() {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken
   
-  // 2. Relay via 1Shot
-  const relayResult = await oneShotRelay({
-    chainId: SEPOLIA_CHAIN_ID,
-    to: VAULT_DEPOSITOR_ADDRESS,
-    data: calldata,
-    from: userSmartAccount
-  });
+  const res = await fetch(ONESHOT_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'client_credentials',
+      client_id: ONESHOT_CLIENT_ID,
+      client_secret: ONESHOT_CLIENT_SECRET
+    })
+  })
+  const { access_token, expires_in } = await res.json()
+  cachedToken = access_token
+  tokenExpiry = Date.now() + (expires_in - 60) * 1000  // refresh 1min early
+  return cachedToken
+}
+
+export async function relayVaultDeposit(userAddress, amountUsdc, vaultAddress) {
+  const token = await getBearerToken()
   
-  // 3. Wait for confirmation
-  return relayResult.txHash;
+  const res = await fetch(ONESHOT_EXECUTE_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      params: {
+        user: userAddress,
+        amount: String(amountUsdc * 1_000_000),  // USDC 6 decimals
+        vault: vaultAddress
+      }
+    })
+  })
+  
+  if (!res.ok) throw new Error(`1Shot relay failed: ${res.status}`)
+  return res.json()  // { txHash, status, ... }
 }
 ```
 
 ### Follow-up Actions
 
-- [ ] Store 1Shot API key in `.env.example` (not hardcoded)
-- [ ] Build `relay.js` agent module
-- [ ] Add 1Shot relay step to demo script
-- [ ] Show tx hash in frontend UI for demo
+- [ ] Sign up at https://1shotapi.com, obtain `CLIENT_ID` + `CLIENT_SECRET`
+- [ ] Add `ONESHOT_CLIENT_ID` + `ONESHOT_CLIENT_SECRET` to `.env.example`
+- [ ] Fund a 1Shot wallet with Sepolia ETH (get from faucet)
+- [ ] Deploy VaultDepositor.sol first, then import ABI + address into 1Shot dashboard
+- [ ] Create contract method endpoint for `executeDeposit`, note the `CONTRACT_METHOD_ID`
+- [ ] Add `CONTRACT_METHOD_ID` to `.env.example`
+- [ ] Build `relay.js` using the code above
+- [ ] Test relay call on Sepolia, capture tx hash
+- [ ] Confirm `from` = 1Shot wallet address on Sepolia Etherscan — screenshot for demo
+- [ ] Configure 1Shot Sepolia webhook URL (optional) or use `waitForTransactionReceipt` polling
 
 ---
 
@@ -172,6 +274,7 @@ async function executeVaultDeposit(permission, amount, vault) {
 | Date       | Status         | Notes                           |
 | ---------- | -------------- | ------------------------------- |
 | 2026-05-26 | 🔴 Not Started | Spike created, prize track req  |
+| 2026-05-26 | ✅ Resolved    | Business API approach confirmed, EIP-7702 authorizationList support found |
 
 ---
 

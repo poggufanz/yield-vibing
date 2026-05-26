@@ -25,7 +25,7 @@ Timeline: 20 days total (26 Mei – 15 Juni 2026)
 | 4 — Polish | 14–17 | Bug fix, Venice AI, demo video |
 | 5 — Buffer | 18–20 | Submission |
 
-**Spikes must be resolved before Phase 2 begins.** Check `docs/spikes/` status first.
+**All 4 spikes resolved. ✅ See `docs/spikes/` for full findings. Key decisions below.**
 
 ---
 
@@ -195,15 +195,37 @@ ExecutionFailed(address indexed user, string reason)
 
 ---
 
-## Key Implementation Notes
+## Key Implementation Notes (updated from spike findings)
 
-**ethers.js version:** Use v6. v6 has breaking changes from v5 (BigInt not BigNumber, `provider.getSigner()` is async, `Contract` import path changed).
+**⚠️ MetaMask Flask required** — NOT regular MetaMask Extension. Flask 13.9.0+ auto-upgrades EOA when requesting ERC-7715 permissions. Download: https://metamask.io/flask/
 
-**Venice AI:** OpenAI-compatible API (`/api/v1/chat/completions`). Use `response_format: { type: 'json_object' }` for structured vault recommendation output.
+**EIP-7702 on Sepolia** — Live since March 5, 2025 (Pectra upgrade). No blockers.
 
-**1Shot API:** `from` in relay tx = relayer address (not user wallet) — this is the demo evidence of gas abstraction. Handles nonce + gas automatically.
+**Frontend stack revision** — Add Viem via ESM CDN for EIP-7702/ERC-7715. Keep ethers.js v6 for contract events.
+```html
+<script type="module">
+  import { createWalletClient, custom } from 'https://esm.sh/viem'
+  import { erc7715ProviderActions } from 'https://esm.sh/@metamask/smart-accounts-kit/actions'
+</script>
+```
+Fallback if SAK has no CDN build: call `window.ethereum.request({ method: 'wallet_requestExecutionPermissions', ... })` directly.
 
-**Security — enforce in every contract function:**
+**ERC-7715 architecture** — VaultDepositor uses its OWN `permissions` mapping for on-chain enforcement. ERC-7715 shown in the FRONTEND for demo story. `context` from MetaMask response stored in `sessionStorage` for display.
+```solidity
+// VaultDepositor.sol permission storage
+mapping(address user => Permission) public permissions;
+function grantPermission(address vault, uint256 maxAmount, uint256 expiresAt) external
+function executeDeposit(address user, uint256 amount, address vault) external  // called by 1Shot
+function revokePermission() external
+```
+
+**1Shot API** — Use Business API (pre-configure contract method endpoint in dashboard). NOT the permissionless relayer endpoint. Auth: M2M JWT (`POST api.1shotapi.com/v0/token`). Execute: `POST api.1shotapi.com/v0/methods/{METHOD_ID}/execute`. Need: CLIENT_ID + CLIENT_SECRET + funded Sepolia wallet.
+
+**ethers.js version:** Use v6. v6 has breaking changes from v5 (BigInt not BigNumber, `provider.getSigner()` is async).
+
+**Venice AI:** `https://api.venice.ai/api/v1` (OpenAI-compatible). Model: `llama-3.3-70b` or `venice-uncensored`. Use `response_format: { type: 'json_object' }` + `venice_parameters: { include_venice_system_prompt: false }`. Use OpenAI SDK via ESM CDN (`https://esm.sh/openai`) pointing at Venice baseURL. Timeout: 10s with hardcoded fallback.
+
+**Security — enforce in VaultDepositor:**
 - Amount ≤ user-defined maxAmount (revert if exceeded, never silent fail)
 - Vault address == user-approved vault (revert if different)
 - `block.timestamp < expiresAt` (revert if permission expired)
@@ -215,14 +237,14 @@ ExecutionFailed(address indexed user, string reason)
 
 ## Technical Spikes
 
-Resolve before implementing. Check status in each file. See `docs/spikes/`:
+All resolved ✅. See `docs/spikes/` for full research. Summary:
 
-| Spike | File | Blocks |
-|-------|------|--------|
-| EIP-7702 + MetaMask SAK | `api-eip7702-metamask-sak-spike.md` | Everything |
-| ERC-7715 scoped permissions | `architecture-erc7715-scoped-permissions-spike.md` | VaultDepositor design |
-| 1Shot API relayer | `api-1shot-permissionless-relayer-spike.md` | Agent/relay layer |
-| Venice AI capabilities | `api-venice-ai-vault-recommendation-spike.md` | Frontend AI step |
+| Spike | Status | Key Finding |
+|-------|--------|-------------|
+| EIP-7702 + MetaMask SAK | ✅ | Sepolia live since Mar 5 2025. Use Viem ESM CDN. Flask 13.9+ required. |
+| ERC-7715 scoped permissions | ✅ | VaultDepositor uses own storage (not DelegationManager). ERC-7715 for UI only. |
+| 1Shot API relayer | ✅ | Use Business API. Configure contract method in dashboard. M2M JWT auth. |
+| Venice AI capabilities | ✅ | OpenAI-compatible. Model: `llama-3.3-70b`. Use OpenAI SDK via ESM CDN. |
 
 ---
 

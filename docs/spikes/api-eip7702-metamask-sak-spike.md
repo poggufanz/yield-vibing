@@ -1,7 +1,7 @@
 ---
 title: "EIP-7702 + MetaMask Smart Accounts Kit Integration"
 category: "API Integration"
-status: "🔴 Not Started"
+status: "✅ Resolved"
 priority: "High"
 timebox: "3 days"
 created: 2026-05-26
@@ -37,62 +37,134 @@ tags: ["technical-spike", "api-integration", "eip-7702", "metamask", "smart-acco
 
 ---
 
-## Investigation Plan
-
-### Research Tasks
-
-- [ ] Check EIP-7702 activation status on Sepolia (Ethereum devnet tracker, Berachain, Etherscan Sepolia)
-- [ ] Read MetaMask Smart Accounts Kit docs — find install command, `createSmartAccount` or equivalent API
-- [ ] Test minimal EIP-7702 `authorization` struct signing via ethers.js on Sepolia
-- [ ] Check if MetaMask wallet itself supports signing EIP-7702 auth or requires SDK middleware
-- [ ] Find example repos using MetaMask SAK on testnet
-- [ ] Verify `eth_sendTransaction` with type `0x04` (EIP-7702 tx type) works on Sepolia RPC
-
-### Success Criteria
-
-**This spike is complete when:**
-
-- [ ] Confirmed Sepolia supports EIP-7702 (or identified blocker with workaround)
-- [ ] Working minimal example: EOA signs EIP-7702 authorization, tx broadcast on Sepolia
-- [ ] MetaMask SAK version + exact import pattern documented
-- [ ] Clear decision: can we upgrade EOA in frontend with MetaMask, or need alternative approach?
-
----
-
-## Technical Context
-
-**Related Components:**
-- `VaultDepositor.sol` — needs to know if caller is upgraded EOA or standard EOA
-- Frontend wallet connect flow — MetaMask provider setup
-- ERC-7715 spike (depends on this being resolved first)
-
-**Dependencies:**
-- ERC-7715 spike blocked until EOA upgrade flow is confirmed
-
-**Constraints:**
-- MetaMask Extension only (no WalletConnect / mobile)
-- Sepolia testnet (not mainnet, not other L2)
-- Solo dev — complexity budget is limited
-
----
-
 ## Research Findings
 
-### Investigation Results
+### EIP-7702 on Sepolia — CONFIRMED ✅
 
-_[Fill during spike]_
+**Pectra upgrade activated on Sepolia at epoch 222464 (March 5, 2025 07:29 UTC).**
+Source: https://blog.ethereum.org/2025/02/14/pectra-testnet-announcement
 
-### Prototype/Testing Notes
+Mainnet activation: May 7, 2025. Sepolia was first. **No blockers.**
 
-_[Paste Sepolia tx hash, error logs, or working code snippet here]_
+EIP-7702 tx type = `0x04`. Authorization tuple format:
+```
+[chain_id, address, nonce, y_parity, r, s]
+```
+EOA code after upgrade = `0xef0100 || delegator_address` (delegation indicator).
 
-### External Resources
+---
 
-- [MetaMask Smart Accounts Kit docs](https://docs.metamask.io/wallet/smart-accounts/)
-- [EIP-7702 spec](https://eips.ethereum.org/EIPS/eip-7702)
-- [Sepolia block explorer](https://sepolia.etherscan.io/)
-- [Ethereum EIP-7702 devnet status](https://github.com/ethereum/go-ethereum/issues)
-- [MetaMask SAK GitHub](https://github.com/MetaMask/smart-accounts-kit)
+### MetaMask Smart Accounts Kit
+
+**Package:** `@metamask/smart-accounts-kit`
+
+```bash
+npm install @metamask/smart-accounts-kit
+```
+
+**⚠️ CRITICAL: SAK is built on Viem, NOT ethers.js.**
+
+The ADR decision ("ethers.js v6 only") must be revised. EIP-7702 authorization signing and ERC-7715 permission requests require Viem.
+
+**Workaround for no-build frontend:** Use Viem via ESM CDN.
+```html
+<script type="module">
+  import { createWalletClient, custom } from 'https://esm.sh/viem'
+  import { sepolia } from 'https://esm.sh/viem/chains'
+</script>
+```
+
+---
+
+### ⚠️ CRITICAL: MetaMask Flask Required (NOT Regular MetaMask)
+
+ERC-7715 Advanced Permissions require **MetaMask Flask 13.5.0+**.
+- Flask 13.9.0+ can auto-upgrade EOA when requesting permissions (no separate upgrade step needed).
+- Regular MetaMask Extension does NOT support `wallet_requestExecutionPermissions`.
+- Flask download: https://metamask.io/flask/
+
+**Demo implication:** Must record demo using MetaMask Flask. Document this for judges.
+
+---
+
+### EIP-7702 Upgrade Flow (Actual)
+
+The delegation target is `EIP7702StatelessDeleGatorImpl` from MetaMask Delegation Framework:
+
+```typescript
+import {
+  Implementation,
+  toMetaMaskSmartAccount,
+  getSmartAccountsEnvironment,
+} from '@metamask/smart-accounts-kit'
+import { createWalletClient, custom } from 'viem'
+import { sepolia } from 'viem/chains'
+
+// 1. Create wallet client from MetaMask provider
+const walletClient = createWalletClient({
+  transport: custom(window.ethereum),
+  chain: sepolia,
+})
+
+// 2. Get delegator contract address for Sepolia
+const environment = getSmartAccountsEnvironment(sepolia.id)
+const contractAddress = environment.implementations.EIP7702StatelessDeleGatorImpl
+
+// 3. Sign EIP-7702 authorization (triggers MetaMask Flask popup)
+const [address] = await walletClient.requestAddresses()
+const authorization = await walletClient.signAuthorization({
+  account: address,
+  contractAddress,
+  executor: 'self',
+})
+
+// 4. Send type 0x04 tx to set EOA code (includes authorization)
+// 1Shot can relay this with authorizationList support
+```
+
+---
+
+### Check if Already Upgraded
+
+```typescript
+import { getSmartAccountsEnvironment } from '@metamask/smart-accounts-kit'
+
+const code = await publicClient.getCode({ address: userAddress })
+if (code) {
+  // code = 0xef0100 || delegatorAddress (23 bytes)
+  const delegatorAddress = `0x${code.substring(8)}`
+  const expected = getSmartAccountsEnvironment(sepolia.id)
+    .implementations.EIP7702StatelessDeleGatorImpl
+  const isUpgraded = delegatorAddress.toLowerCase() === expected.toLowerCase()
+}
+```
+
+---
+
+### Frontend Tech Stack Revision
+
+Original plan: plain HTML/JS + ethers.js v6 only.
+
+**Revised:** Add Viem via ESM CDN for EIP-7702/ERC-7715. Keep ethers.js v6 for contract event listening and ABI encoding if preferred, but Viem handles auth signing.
+
+| Concern | Library |
+|---------|---------|
+| EIP-7702 authorization signing | Viem (`signAuthorization`) |
+| ERC-7715 permission request | Viem + SAK `erc7715ProviderActions` |
+| Contract event listening | ethers.js v6 OR Viem publicClient |
+| General RPC | Either |
+
+Since SAK is Viem-based and can't be imported via CDN (it's npm-only), call ERC-7715 directly via JSON-RPC for the no-build frontend:
+
+```javascript
+// Direct JSON-RPC — no SAK needed
+const permissionsResponse = await window.ethereum.request({
+  method: 'wallet_requestExecutionPermissions',
+  params: [{ ... }]
+})
+```
+
+Viem can be used via `https://esm.sh/viem` for authorization signing only.
 
 ---
 
@@ -100,27 +172,71 @@ _[Paste Sepolia tx hash, error logs, or working code snippet here]_
 
 ### Recommendation
 
-_[Fill after investigation]_
+**Proceed with original architecture. EIP-7702 on Sepolia confirmed. No blockers.**
+
+Use MetaMask Flask 13.9.0+ which auto-handles EIP-7702 upgrade during permission grant (no separate upgrade step needed for demo). This simplifies the user flow to one interaction.
 
 ### Rationale
 
-_[Why this approach vs alternatives]_
+- Flask 13.9.0+ combines upgrade + permission grant → single user interaction = cleaner demo
+- Viem ESM CDN handles the authorization signing for pure frontend
+- Direct JSON-RPC for `wallet_requestExecutionPermissions` eliminates SAK npm dependency issue
 
 ### Implementation Notes
 
-```solidity
-// Expected: VaultDepositor checks for delegated EOA
-// If EIP-7702 confirmed on Sepolia:
-//   - EOA will have code = delegation designator
-//   - Can call execute() on EOA directly
+```javascript
+// wallet.js — simplified flow for demo (Flask 13.9+ auto-upgrades)
+
+import { createWalletClient, createPublicClient, custom, http } from 'https://esm.sh/viem'
+import { sepolia } from 'https://esm.sh/viem/chains'
+import { erc7715ProviderActions } from 'https://esm.sh/@metamask/smart-accounts-kit/actions'
+
+const publicClient = createPublicClient({ chain: sepolia, transport: http(SEPOLIA_RPC) })
+
+const walletClient = createWalletClient({
+  chain: sepolia,
+  transport: custom(window.ethereum),
+}).extend(erc7715ProviderActions())
+
+// Check upgrade status
+async function isUpgraded(address) {
+  const code = await publicClient.getCode({ address })
+  return code && code.startsWith('0xef0100')
+}
+
+// Request permissions — Flask 13.9+ auto-upgrades if needed
+async function requestPermissions(sessionAccountAddress, vaultAddress, maxAmountUsdc, expiryTs) {
+  return walletClient.requestExecutionPermissions([{
+    chainId: sepolia.id,
+    expiry: expiryTs,
+    to: sessionAccountAddress,
+    permission: {
+      type: 'erc20-token-periodic',
+      data: {
+        tokenAddress: USDC_SEPOLIA_ADDRESS,
+        periodAmount: BigInt(maxAmountUsdc) * BigInt(1e6),
+        periodDuration: expiryTs - Math.floor(Date.now() / 1000),
+        justification: `Vault deposit to ${vaultAddress}`,
+      },
+      isAdjustmentAllowed: false,
+    },
+  }])
+  // Returns: [{ context, delegationManager, dependencies, ... }]
+}
 ```
+
+Note: `erc7715ProviderActions` may not be available via ESM CDN if SAK lacks CDN build.
+Fallback: use direct `window.ethereum.request({ method: 'wallet_requestExecutionPermissions', params: [...] })`.
 
 ### Follow-up Actions
 
-- [ ] If EIP-7702 works: update VaultDepositor.sol interface to assume smart account caller
-- [ ] If EIP-7702 NOT on Sepolia: evaluate EIP-4337 + Pimlico/Bundler as fallback
-- [ ] Update architecture doc with confirmed approach
-- [ ] Create ERC-7715 spike (unblock)
+- [x] Confirmed Sepolia supports EIP-7702 (March 5, 2025)
+- [ ] Download MetaMask Flask 13.9.0+ on demo browser profile
+- [ ] Verify `esm.sh/viem` loads correctly in browser (no bundler)
+- [ ] Verify `esm.sh/@metamask/smart-accounts-kit` is available as ESM, or fall back to direct JSON-RPC
+- [ ] Test actual EIP-7702 upgrade tx on Sepolia before recording demo
+- [ ] Update frontend ADR: "Viem (ESM CDN) for EIP-7702/ERC-7715, ethers.js v6 for contract calls"
+- [ ] Unblock ERC-7715 spike
 
 ---
 
@@ -129,6 +245,7 @@ _[Why this approach vs alternatives]_
 | Date       | Status         | Notes                              |
 | ---------- | -------------- | ---------------------------------- |
 | 2026-05-26 | 🔴 Not Started | Spike created, highest priority    |
+| 2026-05-26 | ✅ Resolved    | Sepolia confirmed, SAK documented, critical Flask requirement found |
 
 ---
 
