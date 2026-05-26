@@ -148,7 +148,7 @@ Flow yang di-automate:
 
 | Risiko | Probabilitas | Mitigasi |
 |--------|-------------|----------|
-| EIP-7702 belum support di Sepolia | Medium | Cek supported networks di docs dulu sebelum mulai |
+| ERC-7715 di MetaMask belum stabil | Tinggi | Cek supported networks di docs dulu sebelum mulai |
 | Smart Accounts Kit docs kurang jelas | High | Liat past hackathon winners untuk reference implementasi |
 | Solo = burnout | High | Timebox per hari, max 8 jam. Kalau stuck > 2 jam, pivot |
 | Scope creep | Medium | Stick ke vault deposit flow only. No feature creep |

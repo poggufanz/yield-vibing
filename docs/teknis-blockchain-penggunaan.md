@@ -116,8 +116,7 @@ Setiap langkah eksekusi menghasilkan on-chain evidence yang bisa diverifikasi di
 
 | Risiko | Probabilitas | Mitigasi |
 |--------|-------------|---------|
-| EIP-7702 belum aktif di Sepolia | Medium | Verifikasi di hari pertama sebelum mulai coding |
-| ERC-7715 di MetaMask belum stabil | Medium | Gunakan versi MetaMask yang direkomendasikan docs |
+| ERC-7715 di MetaMask belum stabil | Tinggi | Gunakan versi MetaMask yang direkomendasikan docs |
 | Reentrancy di VaultDepositor | Low | CEI pattern + ReentrancyGuard dari OpenZeppelin |
 | Permission bypass via crafted calldata | Low | Validasi ketat: vault == allowedVault, amount <= maxAmount |
 | 1Shot relay tidak kompatibel EIP-7710 | Medium | Test relay di Day 9 sebelum frontend integration |
