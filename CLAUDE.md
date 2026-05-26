@@ -268,13 +268,10 @@ All resolved ✅. See `docs/spikes/` for full research. Summary:
 - [ ] Venice AI recommendation shown before permission grant step
 - [ ] All 3 prize tracks demonstrable in ≤ 5 min video
 
-## Prize Tracks
-
-- Best Agent — $3,000
-- Best use of Venice AI — $3,000
-- Best Use of 1Shot Permissionless Relayer — $1,000 USDC
-
----
+## Development Environment
+- Foundry runs in WSL only. All forge/cast/anvil commands must be run via:
+  `wsl -e bash -c "cd /mnt/c/SharredData/project/competition/yield-vibing && forge <command>"`
+- Never run forge directly in PowerShell/cmd — it will fail.
 
 ## Key Docs
 
