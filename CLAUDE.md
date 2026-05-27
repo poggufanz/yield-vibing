@@ -31,15 +31,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Timeline: 20 days total (26 Mei – 15 Juni 2026)
 
-| Phase | Days | Focus |
-|-------|------|-------|
-| 1 — Foundation | 1–3 | Solidity review + EIP-7702/ERC-7715 study |
-| 2 — Smart Contract | 4–8 | AgentVaultDepositor.sol + tests |
-| 3 — Integration | 9–13 | 1Shot + Orchestrator/Worker agents + vis.js graph + Sepolia test |
-| 4 — Polish | 14–17 | Bug fix, Venice AI skill gen, memory UI, demo video |
-| 5 — Buffer | 18–20 | Submission |
+| Phase | Days | Status | Focus |
+|-------|------|--------|-------|
+| 1 — Foundation | 1–3 | ✅ Done | Solidity review + setup + spike review |
+| 2 — Smart Contract | 4–8 | 🔴 Next | AgentVaultDepositor.sol + tests |
+| 3 — Integration | 9–13 | ⬜ | 1Shot + Orchestrator/Worker agents + vis.js graph + Sepolia test |
+| 4 — Polish | 14–17 | ⬜ | Bug fix, Venice AI skill gen, memory UI, demo video |
+| 5 — Buffer | 18–20 | ⬜ | Submission |
 
 **All 4 spikes resolved. ✅ See `docs/spikes/` for full findings. Key decisions below.**
+
+## Planning Rules
+
+- Planning files (`planning/`, `docs/superpowers/`) are **never committed** — both folders are in `.gitignore`
+- Per-phase plans live locally only (not in repo)
+- Only phase status table above is updated in this file as phases complete
 
 ---
 
