@@ -68,13 +68,19 @@ Target: Demo end-to-end multi-vault deposit automation dengan agent swarm di Sep
 
 ### Fase 1: Foundation (Day 1–3 | 26–28 Mei)
 
+> **Catatan:** Semua 4 spike sudah resolved ✅. Review spike tidak perlu diulang — langsung lanjut ke pemahaman arsitektur dan persiapan teknis.
+
 | Hari | Deliverable | Selesai |
 |------|-------------|---------|
-| Day 1 | Review Solidity fundamentals (storage, events, modifiers) | [ ] |
-| Day 2 | Security patterns: validation, access control, CEI pattern | [ ] |
-| Day 3 | Review spike findings: EIP-7702, ERC-7715, 1Shot, Venice AI | [ ] |
+| Day 1 | Review Solidity: storage, events, modifiers, access control | [ ] |
+| Day 1 | Security patterns: CEI pattern, ReentrancyGuard, revert vs silent fail | [ ] |
+| Day 2 | Baca `GETTING_STARTED.md` end-to-end: contract spec, build order, skill schema | [ ] |
+| Day 2 | Pahami Skill System: JSON schema per agent, flow Venice AI → skills.js → worker.js | [ ] |
+| Day 3 | Review design prototype (`design/Vibing Farmer Prototype.html`) — UI reference sebelum tulis contract | [ ] |
+| Day 3 | Setup check: `forge build` OK · `.env.example` → `.env` · `agents/memory/` dir exists | [ ] |
+| Day 3 | Verify `contracts/AgentVaultDepositor.sol` + `test/AgentVaultDepositor.t.sol` siap diisi | [ ] |
 
-**Milestone gate:** Semua spike findings dipahami. Siap bangun contracts.
+**Milestone gate:** `forge build` green. Semua file skeleton bernama benar. Skill schema dipahami. Siap tulis logic di Phase 2.
 
 ### Fase 2: Smart Contract (Day 4–8 | 29 Mei – 2 Juni)
 
