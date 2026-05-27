@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YIELD VIBING — AI Yield Farming</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- vis.js (UMD — must load before modules) -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Left Rail -->
+    <aside id="left-rail">
+      <div class="brand">YIELD VIBING</div>
+      <p class="tagline">Set once. Vibe forever.</p>
+
+      <!-- Step Tracker -->
+      <nav id="steps">
+        <div class="step" id="step-connect" data-step="1">
+          <span class="step-dot"></span>
+          <span class="step-label">Connect Wallet</span>
+        </div>
+        <div class="step" id="step-generate" data-step="2">
+          <span class="step-dot"></span>
+          <span class="step-label">Generate Strategy</span>
+        </div>
+        <div class="step" id="step-approve" data-step="3">
+          <span class="step-dot"></span>
+          <span class="step-label">Approve Skills</span>
+        </div>
+        <div class="step" id="step-execute" data-step="4">
+          <span class="step-dot"></span>
+          <span class="step-label">Execute Agents</span>
+        </div>
+        <div class="step" id="step-done" data-step="5">
+          <span class="step-dot"></span>
+          <span class="step-label">Done</span>
+        </div>
+      </nav>
+
+      <!-- Input Form -->
+      <form id="farm-form">
+        <label>
+          Amount (USDC)
+          <input type="number" id="input-amount" value="100" min="1" max="10000">
+        </label>
+        <label>
+          Risk Level
+          <select id="input-risk">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+        <label>
+          Number of Vaults
+          <input type="number" id="input-vaults" value="2" min="1" max="5">
+        </label>
+        <label>
+          Venice API Key
+          <input type="password" id="input-venice-key" placeholder="Enter Venice AI key">
+        </label>
+      </form>
+
+      <!-- Action Buttons -->
+      <div id="actions">
+        <button id="btn-connect" class="btn-primary">Connect Wallet</button>
+        <button id="btn-generate" class="btn-primary" disabled>Generate Strategy</button>
+        <button id="btn-approve" class="btn-primary" disabled>Approve &amp; Execute</button>
+        <button id="btn-reset" class="btn-secondary" style="display:none">Reset</button>
+      </div>
+
+      <!-- Activity Log -->
+      <div id="activity-log">
+        <div class="log-title">Activity</div>
+        <div id="log-entries"></div>
+      </div>
+    </aside>
+
+    <!-- Graph Area -->
+    <main id="graph-area">
+      <div id="graph-container"></div>
+    </main>
+
+    <!-- Right Rail -->
+    <aside id="right-rail">
+      <div id="detail-panel">
+        <div class="detail-placeholder">Click a node to see agent details</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Main app entry point -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+// DOM helpers, step tracker, activity log
+
+const STEP_IDS = ['connect', 'generate', 'approve', 'execute', 'done']
+
+/**
+ * Set step status.
+ * @param {string} stepId - one of STEP_IDS
+ * @param {'pending'|'active'|'done'|'error'} status
+ */
+export function setStep(stepId, status) {
+  const el = document.getElementById(`step-${stepId}`)
+  if (!el) return
+  el.dataset.status = status
+}
+
+/**
+ * Log a message to the activity log.
+ * @param {string} message
+ * @param {'info'|'success'|'error'|'warn'} type
+ */
+export function logActivity(message, type = 'info') {
+  const container = document.getElementById('log-entries')
+  if (!container) return
+  const entry = document.createElement('div')
+  entry.className = `log-entry log-${type}`
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false })
+  entry.textContent = `[${time}] ${message}`
+  container.appendChild(entry)
+  container.scrollTop = container.scrollHeight
+}
+
+/**
+ * Show agent detail in right rail.
+ * @param {object} agent - { id, label, status, vault, skills, memory }
+ */
+export function showAgentDetail(agent) {
+  const panel = document.getElementById('detail-panel')
+  if (!panel) return
+  panel.innerHTML = `
+    <div class="detail-header">
+      <span class="detail-label">${agent.label}</span>
+      <span class="detail-status detail-status--${agent.status}">${agent.status}</span>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Agent ID</div>
+      <div class="detail-val mono">${agent.id.slice(0, 18)}...</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Vault</div>
+      <div class="detail-val mono">${agent.vault || '—'}</div>
+    </div>
+    ${agent.skills ? `
+    <div class="detail-section">
+      <div class="detail-key">Skills</div>
+      <pre class="detail-code">${JSON.stringify(agent.skills, null, 2)}</pre>
+    </div>` : ''}
+    ${agent.memory && agent.memory.length > 0 ? `
+    <div class="detail-section">
+      <div class="detail-key">Memory (${agent.memory.length} entries)</div>
+      ${agent.memory.map(e => `
+        <div class="memory-entry memory-entry--${e.status}">
+          <span class="memory-step">${e.step}</span>
+          <span class="memory-status">${e.status}</span>
+          ${e.lesson ? `<span class="memory-lesson">${e.lesson}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>` : ''}
+  `
+}
+
+/**
+ * Show orchestrator detail in right rail.
+ * @param {object} data - { totalAgents, completed, failed, totalShares }
+ */
+export function showOrchestratorDetail(data) {
+  const panel = document.getElementById('detail-panel')
+  if (!panel) return
+  panel.innerHTML = `
+    <div class="detail-header">
+      <span class="detail-label">Orchestrator</span>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Total Agents</div>
+      <div class="detail-val">${data.totalAgents}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Completed</div>
+      <div class="detail-val detail-val--success">${data.completed}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Failed</div>
+      <div class="detail-val detail-val--error">${data.failed}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-key">Total Shares</div>
+      <div class="detail-val">${data.totalShares}</div>
+    </div>
+  `
+}
+
+/** Enable/disable a button by ID */
+export function setButtonEnabled(id, enabled) {
+  const btn = document.getElementById(id)
+  if (btn) btn.disabled = !enabled
+}
+
+/** Show/hide a button by ID */
+export function setButtonVisible(id, visible) {
+  const btn = document.getElementById(id)
+  if (btn) btn.style.display = visible ? '' : 'none'
+}
