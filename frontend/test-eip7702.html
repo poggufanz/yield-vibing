@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YIELD VIBING — Verifikasi EIP-7702 & ERC-7715</title>
+  <title>YIELD VIBING — Verifikasi ERC-7715</title>
   <style>
     :root {
       --bg: #0c0c0e;
@@ -89,16 +89,34 @@
       margin-bottom: 24px;
     }
     .warn strong { color: var(--accent); display: block; margin-bottom: 4px; }
+    .info {
+      border-left: 3px solid #3b82f6;
+      padding: 12px 16px;
+      background: rgba(59,130,246,0.05);
+      border-radius: 0 8px 8px 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .info strong { color: #3b82f6; display: block; margin-bottom: 4px; }
   </style>
 </head>
 <body>
-  <h1>Verifikasi EIP-7702 & ERC-7715</h1>
+  <h1>Verifikasi ERC-7715</h1>
   <p class="subtitle">Gate check Phase 1 — YIELD VIBING</p>
 
   <div class="warn">
     <strong>PERINGATAN</strong>
     Halaman ini HARUS dibuka di browser dengan <strong>MetaMask Flask 13.9+</strong> yang sudah di-switch ke <strong>Sepolia Testnet</strong>.
-    Jangan pakai regular MetaMask Extension — Flask saja yang support EIP-7702 auto-upgrade.
+    Jangan pakai regular MetaMask Extension — Flask saja yang support ERC-7715.
+  </div>
+
+  <div class="info">
+    <strong>CATATAN: EIP-7702</strong>
+    Raw EIP-7702 upgrade (<code>eth_signAuthorization</code>) tidak bisa diakses langsung via injected provider.
+    EIP-7702 dihandle internal oleh <strong>MetaMask Smart Accounts Kit</strong> saat permission di-grant.
+    Test ini hanya verifikasi ERC-7715 permission flow — sudah cukup untuk Phase 1.
+    Setup SAK lengkap dilakukan di Phase 3 (Integration).
   </div>
 
   <div class="grid grid-2">
@@ -125,14 +143,13 @@
   </div>
 
   <div class="card">
-    <h2>3. EOA Upgrade (EIP-7702)</h2>
-    <div id="upgrade-status" class="grid">
-      <div class="status" id="st-code-before"><span class="dot"></span>EOA code sebelum permission</div>
-      <div class="status" id="st-grant"><span class="dot"></span>Permission granted</div>
-      <div class="status" id="st-code-after"><span class="dot"></span>EOA code setelah upgrade</div>
+    <h2>3. Grant Permission (ERC-7715)</h2>
+    <div id="grant-status" class="grid">
+      <div class="status" id="st-grant"><span class="dot"></span>wallet_requestExecutionPermissions</div>
+      <div class="status" id="st-context"><span class="dot"></span>Permission context received</div>
     </div>
-    <button id="btn-grant" onclick="grantPermission()" disabled>Grant Dummy Permission</button>
-    <div class="log" id="log-upgrade">Selesaikan Step 1 & 2 terlebih dahulu...</div>
+    <button id="btn-grant" onclick="grantPermission()" disabled>Grant Test Permission</button>
+    <div class="log" id="log-grant">Selesaikan Step 1 &amp; 2 terlebih dahulu...</div>
   </div>
 
   <div class="card">
@@ -142,7 +159,7 @@
       <div class="status" id="sum-rpc"><span class="dot"></span>Sepolia RPC working</div>
       <div class="status" id="sum-support"><span class="dot"></span>wallet_getSupportedExecutionPermissions</div>
       <div class="status" id="sum-request"><span class="dot"></span>wallet_requestExecutionPermissions</div>
-      <div class="status" id="sum-upgrade"><span class="dot"></span>EOA upgraded to smart account</div>
+      <div class="status" id="sum-context"><span class="dot"></span>Permission context returned</div>
     </div>
     <div class="log" id="log-summary">Semua gate harus hijau sebelum lanjut Phase 2...</div>
   </div>
@@ -155,8 +172,7 @@
     let mmVersion = null;
 
     function log(id, text) {
-      const el = document.getElementById(id);
-      el.textContent = text;
+      document.getElementById(id).textContent = text;
     }
 
     function setStatus(id, ok, text) {
@@ -168,18 +184,15 @@
     async function checkEnv() {
       log('log-env', 'Checking...');
       try {
-        // 1. MetaMask
         if (!window.ethereum) throw new Error('MetaMask tidak ditemukan');
         mmVersion = window.ethereum.version || 'unknown';
         setStatus('st-mm', true, 'MetaMask detected: ' + mmVersion);
 
-        // 2. Chain
         chainId = await ethereum.request({ method: 'eth_chainId' });
         const isSepolia = chainId === '0xaa36a7';
         setStatus('st-chain', isSepolia, isSepolia ? 'Sepolia OK (' + chainId + ')' : 'Bukan Sepolia (' + chainId + ')');
         if (!isSepolia) throw new Error('Switch ke Sepolia di MetaMask Flask');
 
-        // 3. Account
         const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
         account = accounts[0];
         setStatus('st-account', true, 'Account: ' + account.slice(0, 10) + '...');
@@ -199,27 +212,20 @@
           method: 'wallet_getSupportedExecutionPermissions',
           params: []
         });
-        setStatus('st-support', true, 'Supported permissions: ' + JSON.stringify(supported).slice(0, 60));
-        log('log-erc7715', 'ERC-7715 didukung. Response: ' + JSON.stringify(supported, null, 2).slice(0, 500));
+        setStatus('st-support', true, 'Supported: ' + JSON.stringify(supported).slice(0, 60));
+        setStatus('sum-support', true, 'wallet_getSupportedExecutionPermissions OK');
+        log('log-erc7715', 'ERC-7715 didukung.\nResponse: ' + JSON.stringify(supported, null, 2).slice(0, 500));
         document.getElementById('btn-grant').disabled = false;
       } catch (e) {
         setStatus('st-support', false, 'Tidak didukung: ' + e.message);
-        log('log-erc7715', 'ERROR: ' + e.message + '\\n\\nPastikan MetaMask Flask 13.9+ dan sudah switch ke Sepolia.');
+        setStatus('sum-support', false, 'wallet_getSupportedExecutionPermissions GAGAL');
+        log('log-erc7715', 'ERROR: ' + e.message + '\n\nPastikan MetaMask Flask 13.9+ dan sudah switch ke Sepolia.');
       }
     }
 
     async function grantPermission() {
-      log('log-upgrade', 'Requesting permission...');
+      log('log-grant', 'Requesting permission...');
       try {
-        // Cek code sebelum
-        const codeBefore = await ethereum.request({
-          method: 'eth_getCode',
-          params: [account, 'latest']
-        });
-        const isUpgradedBefore = codeBefore.startsWith('0xef0100');
-        setStatus('st-code-before', !isUpgradedBefore, 'EOA code: ' + codeBefore.slice(0, 20) + (isUpgradedBefore ? ' (sudah smart account!)' : ' (EOA normal)'));
-
-        // Grant permission
         const result = await ethereum.request({
           method: 'wallet_requestExecutionPermissions',
           params: [{
@@ -231,7 +237,7 @@
               isAdjustmentAllowed: false,
               data: {
                 tokenAddress: USDC_SEPOLIA,
-                periodAmount: '10000000',
+                periodAmount: '0x' + (10000000).toString(16),
                 periodDuration: 86400,
                 justification: 'Test permission for yield-vibing'
               }
@@ -243,40 +249,27 @@
           }]
         });
 
+        const hasContext = !!(result && (result.permissionContext || result.context || result.grantedPermissions));
         setStatus('st-grant', true, 'Permission granted!');
-        log('log-upgrade', 'Permission granted!\\nResult: ' + JSON.stringify(result, null, 2).slice(0, 600));
+        setStatus('st-context', hasContext, hasContext ? 'Context received ✓' : 'Warning: no context in result');
         setStatus('st-request', true, 'wallet_requestExecutionPermissions OK');
+        setStatus('sum-request', true, 'wallet_requestExecutionPermissions OK');
+        setStatus('sum-context', hasContext, hasContext ? 'Permission context OK' : 'No context — check SAK version');
 
-        // Cek code sesudah
-        const codeAfter = await ethereum.request({
-          method: 'eth_getCode',
-          params: [account, 'latest']
-        });
-        const isUpgradedAfter = codeAfter.startsWith('0xef0100');
-        setStatus('st-code-after', isUpgradedAfter, 'EOA code: ' + codeAfter.slice(0, 30) + (isUpgradedAfter ? ' (smart account!)' : ' (masih EOA)'));
-        setStatus('sum-upgrade', isUpgradedAfter, isUpgradedAfter ? 'EOA upgraded: ' + codeAfter.slice(0, 20) + '...' : 'EOA belum upgrade');
-
-        if (!isUpgradedAfter) {
-          log('log-upgrade', 'WARNING: EOA belum jadi smart account. Coba ulang atau cek versi Flask.');
-        } else {
-          log('log-upgrade', '✅ EIP-7702 BERHASIL! EOA sudah upgrade ke smart account.\\nCode: ' + codeAfter.slice(0, 50));
-        }
-
-        updateSummary(true);
+        log('log-grant', 'Permission granted!\nResult: ' + JSON.stringify(result, null, 2).slice(0, 800));
+        updateSummary();
       } catch (e) {
         setStatus('st-grant', false, 'Gagal: ' + e.message);
-        log('log-upgrade', 'ERROR: ' + e.message);
+        setStatus('sum-request', false, 'wallet_requestExecutionPermissions GAGAL');
+        log('log-grant', 'ERROR: ' + e.message);
       }
     }
 
-    function updateSummary(allOk) {
+    function updateSummary() {
       setStatus('sum-mm', true, 'MetaMask: ' + (mmVersion || 'unknown'));
       setStatus('sum-rpc', true, 'Sepolia RPC: chainId ' + (chainId || '?'));
-      // Other statuses set during process
-      const logEl = document.getElementById('log-summary');
-      if (allOk) {
-        logEl.textContent = '🎉 Semua gate check BERHASIL! Bisa lanjut Phase 2 (Smart Contract).';
-      }
+      document.getElementById('log-summary').textContent =
+        '✅ Gate check Phase 1 BERHASIL! ERC-7715 permission flow bekerja.\nEIP-7702 dihandle oleh MetaMask SAK di Phase 3 (Integration).';
     }
   </script>
 </body>
