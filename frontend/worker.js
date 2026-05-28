@@ -33,9 +33,9 @@ export class WorkerAgent {
    * @returns {Promise<{success: boolean, txHash?: string, error?: string, shares?: bigint}>}
    */
   async execute() {
-    this.emit('started', { agentId: this.agentId, vault: this.vault })
-
     try {
+      this.emit('started', { agentId: this.agentId, vault: this.vault })
+
       // Step 1: Grant on-chain permission via relay
       this.emit('step', { agentId: this.agentId, step: 'grant-permission', status: 'pending' })
       const expiresAt = Math.floor(Date.now() / 1000) + 3600

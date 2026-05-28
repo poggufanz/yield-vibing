@@ -18,14 +18,21 @@ export function setStep(stepId, status) {
  * @param {string} message
  * @param {'info'|'success'|'error'|'warn'} type
  */
+const MARKER = { success: '✓', error: '✕', warn: '!', info: '·' }
+const MARKER_CLASS = { success: 'ok', error: 'danger', warn: 'warn', info: 'info' }
+
 export function logActivity(message, type = 'info') {
   const container = document.getElementById('log-entries')
   if (!container) return
-  const entry = document.createElement('div')
-  entry.className = `log-entry log-${type}`
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false })
-  entry.textContent = `[${time}] ${message}`
-  container.appendChild(entry)
+  const row = document.createElement('div')
+  row.className = 'act-row'
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  row.innerHTML = `
+    <span class="act-marker ${MARKER_CLASS[type] || 'info'}">${MARKER[type] || '·'}</span>
+    <span class="act-text">${message}</span>
+    <span class="act-time">${time}</span>
+  `
+  container.appendChild(row)
   container.scrollTop = container.scrollHeight
 }
 
@@ -49,22 +56,24 @@ export function showAgentDetail(agent) {
       <div class="detail-key">Vault</div>
       <div class="detail-val mono">${agent.vault || '—'}</div>
     </div>
-    ${agent.skills ? `
     <div class="detail-section">
       <div class="detail-key">Skills</div>
-      <pre class="detail-code">${JSON.stringify(agent.skills, null, 2)}</pre>
-    </div>` : ''}
-    ${agent.memory && agent.memory.length > 0 ? `
+      ${agent.skills
+        ? `<pre class="detail-code">${JSON.stringify(agent.skills, null, 2)}</pre>`
+        : `<div class="detail-empty">Generated when agent dispatches</div>`}
+    </div>
     <div class="detail-section">
-      <div class="detail-key">Memory (${agent.memory.length} entries)</div>
-      ${agent.memory.map(e => `
-        <div class="memory-entry memory-entry--${e.status}">
-          <span class="memory-step">${e.step}</span>
-          <span class="memory-status">${e.status}</span>
-          ${e.lesson ? `<span class="memory-lesson">${e.lesson}</span>` : ''}
-        </div>
-      `).join('')}
-    </div>` : ''}
+      <div class="detail-key">Memory${agent.memory && agent.memory.length > 0 ? ` (${agent.memory.length})` : ''}</div>
+      ${agent.memory && agent.memory.length > 0
+        ? agent.memory.map(e => `
+          <div class="memory-entry memory-entry--${e.status}">
+            <span class="memory-step">${e.step}</span>
+            <span class="memory-status">${e.status}</span>
+            ${e.lesson ? `<span class="memory-lesson">${e.lesson}</span>` : ''}
+          </div>
+        `).join('')
+        : `<div class="detail-empty">No entries yet</div>`}
+    </div>
   `
 }
 

@@ -13,12 +13,12 @@ export class OrchestratorAgent {
    * @param {string} config.veniceApiKey
    * @param {function} config.onEvent - (eventName, data) => void
    */
-  constructor({ user, permissionContext, veniceApiKey, onEvent }) {
+  constructor({ user, permissionContext, veniceApiKey, sessionId, onEvent }) {
     this.user = user
     this.permissionContext = permissionContext
     this.veniceApiKey = veniceApiKey
     this.onEvent = onEvent || (() => {})
-    this.sessionId = `session-${Date.now()}`
+    this.sessionId = sessionId || `session-${Date.now()}`
   }
 
   /**

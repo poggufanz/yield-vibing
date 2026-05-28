@@ -106,6 +106,7 @@ document.getElementById('btn-connect').addEventListener('click', async () => {
     state.account = await connectWallet()
     setStep('connect', 'done')
     logActivity(`Connected: ${state.account.slice(0, 10)}...`, 'success')
+    updateWalletPanel(state.account)
     setButtonEnabled('btn-generate', true)
     setButtonEnabled('btn-connect', false)
     state.phase = 'connected'
@@ -142,6 +143,7 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
 
     // Build graph from plan
     state.graph?.buildFromPlan(state.vaultPlans)
+    showGraph()
 
     setStep('generate', 'done')
     logActivity(`Strategy: ${state.strategy.rationale}`, 'success')
@@ -174,6 +176,7 @@ document.getElementById('btn-approve').addEventListener('click', async () => {
     // Execute
     setStep('execute', 'active')
     state.phase = 'executing'
+    showGraph()
 
     const amount = Number(document.getElementById('input-amount').value)
     const apiKey = document.getElementById('input-venice-key').value
@@ -182,17 +185,20 @@ document.getElementById('btn-approve').addEventListener('click', async () => {
       user: state.account,
       permissionContext: state.permissionContext,
       veniceApiKey: apiKey,
+      sessionId: state.sessionId,
       onEvent: handleAgentEvent
     })
 
     const summary = await orchestrator.dispatch(state.strategy, amount)
 
     setStep('execute', summary.failed === 0 ? 'done' : 'error')
+    setButtonVisible('btn-reset', true)
     state.phase = 'done'
   } catch (err) {
     setStep('approve', 'error')
     logActivity(`Execution failed: ${err.message}`, 'error')
     setButtonEnabled('btn-approve', true)
+    setButtonVisible('btn-reset', true)
   }
 })
 
@@ -203,8 +209,13 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   state.vaultPlans = []
   state.permissionContext = null
   state.graph?.reset()
+  hideGraph()
   document.getElementById('log-entries').innerHTML = ''
-  document.getElementById('detail-panel').innerHTML = '<div class="detail-placeholder">Click a node to see agent details</div>'
+  document.getElementById('detail-panel').innerHTML = '<span class="empty">—</span>'
+  const walletMeta = document.getElementById('wallet-meta')
+  const walletDetail = document.getElementById('wallet-detail')
+  if (walletMeta) walletMeta.textContent = 'not connected'
+  if (walletDetail) walletDetail.innerHTML = '<span class="empty">— belum connect</span>'
   ;['connect', 'generate', 'approve', 'execute', 'done'].forEach(s => setStep(s, 'pending'))
   setButtonEnabled('btn-connect', true)
   setButtonEnabled('btn-generate', false)
@@ -212,6 +223,46 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   setButtonVisible('btn-reset', false)
   logActivity('Reset.', 'info')
 })
+
+// Risk buttons → sync hidden select
+document.querySelectorAll('.risk-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.risk-opt').forEach(b => {
+      b.classList.remove('selected')
+      b.setAttribute('aria-checked', 'false')
+    })
+    btn.classList.add('selected')
+    btn.setAttribute('aria-checked', 'true')
+    const sel = document.getElementById('input-risk')
+    if (sel) sel.value = btn.dataset.risk
+  })
+})
+
+// Show graph + hide strategy card during execute phase
+function showGraph() {
+  const card = document.getElementById('card-strategy')
+  const graph = document.getElementById('graph-container')
+  if (card) card.style.display = 'none'
+  if (graph) graph.classList.add('visible')
+}
+
+function hideGraph() {
+  const card = document.getElementById('card-strategy')
+  const graph = document.getElementById('graph-container')
+  if (card) card.style.display = ''
+  if (graph) graph.classList.remove('visible')
+}
+
+// Update wallet display in right rail
+function updateWalletPanel(address) {
+  const meta = document.getElementById('wallet-meta')
+  const detail = document.getElementById('wallet-detail')
+  if (meta) meta.textContent = 'sepolia'
+  if (detail) detail.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--text);letter-spacing:-0.01em">${address}</div>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--accent);margin-top:4px">eip-7702 ready</div>
+  `
+}
 
 // Init
 initGraph()

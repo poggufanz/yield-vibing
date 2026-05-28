@@ -4,94 +4,172 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YIELD VIBING — AI Yield Farming</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <!-- vis.js (UMD — must load before modules) -->
   <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
-  <div id="app">
-    <!-- Left Rail -->
-    <aside id="left-rail">
-      <div class="brand">YIELD VIBING</div>
-      <p class="tagline">Set once. Vibe forever.</p>
+<div class="app">
 
-      <!-- Step Tracker -->
-      <nav id="steps">
-        <div class="step" id="step-connect" data-step="1">
-          <span class="step-dot"></span>
-          <span class="step-label">Connect Wallet</span>
-        </div>
-        <div class="step" id="step-generate" data-step="2">
-          <span class="step-dot"></span>
-          <span class="step-label">Generate Strategy</span>
-        </div>
-        <div class="step" id="step-approve" data-step="3">
-          <span class="step-dot"></span>
-          <span class="step-label">Approve Skills</span>
-        </div>
-        <div class="step" id="step-execute" data-step="4">
-          <span class="step-dot"></span>
-          <span class="step-label">Execute Agents</span>
-        </div>
-        <div class="step" id="step-done" data-step="5">
-          <span class="step-dot"></span>
-          <span class="step-label">Done</span>
-        </div>
-      </nav>
+  <!-- 58px icon sidebar -->
+  <nav class="sidebar" aria-label="Primary">
+    <div class="sb-logo" title="yield/vibing">y/</div>
+    <button class="sb-item" title="home" aria-label="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z"/></svg>
+    </button>
+    <button class="sb-item active" title="vaults" aria-label="vaults">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg>
+    </button>
+    <button class="sb-item" title="history" aria-label="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </button>
+    <button class="sb-item" title="settings" aria-label="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <div class="sb-spacer"></div>
+    <button class="sb-item" title="notifications" aria-label="notifications">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+  </nav>
 
-      <!-- Input Form -->
-      <form id="farm-form">
-        <label>
-          Amount (USDC)
-          <input type="number" id="input-amount" value="100" min="1" max="10000">
-        </label>
-        <label>
-          Risk Level
-          <select id="input-risk">
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-          </select>
-        </label>
-        <label>
-          Number of Vaults
-          <input type="number" id="input-vaults" value="2" min="1" max="5">
-        </label>
-        <label>
-          Venice API Key
-          <input type="password" id="input-venice-key" placeholder="Enter Venice AI key">
-        </label>
-      </form>
+  <!-- Main column -->
+  <main class="main">
 
-      <!-- Action Buttons -->
-      <div id="actions">
-        <button id="btn-connect" class="btn-primary">Connect Wallet</button>
-        <button id="btn-generate" class="btn-primary" disabled>Generate Strategy</button>
-        <button id="btn-approve" class="btn-primary" disabled>Approve &amp; Execute</button>
-        <button id="btn-reset" class="btn-secondary" style="display:none">Reset</button>
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <span>yield</span><span class="slash">/</span><span class="vibing">vibing</span>
+        </div>
+        <span class="brand-net mono"><span class="net-dot"></span>sepolia</span>
       </div>
-
-      <!-- Activity Log -->
-      <div id="activity-log">
-        <div class="log-title">Activity</div>
-        <div id="log-entries"></div>
+      <div class="topbar-right">
+        <span class="topbar-meta">relayer&nbsp;<b>1Shot</b>&nbsp;·&nbsp;gas&nbsp;<b>0</b></span>
       </div>
-    </aside>
+    </header>
 
-    <!-- Graph Area -->
-    <main id="graph-area">
+    <!-- Horizontal step rail -->
+    <div class="step-rail">
+      <div class="step-rail-item" id="step-connect"><span class="num">01</span>Connect</div>
+      <div class="step-rail-item" id="step-generate"><span class="num">02</span>Generate Strategy</div>
+      <div class="step-rail-item" id="step-approve"><span class="num">03</span>Grant Permission</div>
+      <div class="step-rail-item" id="step-execute"><span class="num">04</span>Execute Agents</div>
+      <div class="step-rail-item" id="step-done"><span class="num">05</span>Complete</div>
+    </div>
+
+    <!-- Stage -->
+    <div class="stage">
+
+      <!-- Strategy input card -->
+      <section id="card-strategy" class="card">
+        <div class="eyebrow">
+          <span class="num">01</span>
+          <span>AI Strategy · venice ai · multi-agent</span>
+          <span class="rule"></span>
+          <span>05 langkah</span>
+        </div>
+        <h1 class="h-display">Set deposit — biar orchestrator yang spawn agent-nya.</h1>
+        <p class="lede">Venice AI nge-generate strategy: berapa worker agent yang dibutuhin, vault apa yang masing-masing handle, dan skill apa yang dia run. Permission yang kamu kasih nanti scoped per-agent — gak ada agent yang bisa keluar batas vault-nya.</p>
+
+        <div class="amount-block">
+          <div>
+            <div class="amount-label">Jumlah deposit</div>
+            <div class="amount-input-row">
+              <input type="number" id="input-amount" value="100" min="1" max="10000" aria-label="Jumlah USDC" inputmode="decimal">
+              <span class="ticker">USDC</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="amount-label">Risk profile · nentuin jumlah agent</div>
+            <div class="risk-row" role="radiogroup">
+              <button type="button" class="risk-opt" data-risk="low" role="radio" aria-checked="false">
+                <span class="risk-opt-label">Low</span>
+                <span class="risk-opt-sub">conservative</span>
+              </button>
+              <button type="button" class="risk-opt selected" data-risk="medium" role="radio" aria-checked="true">
+                <span class="risk-opt-label">Medium</span>
+                <span class="risk-opt-sub">balanced</span>
+              </button>
+              <button type="button" class="risk-opt" data-risk="high" role="radio" aria-checked="false">
+                <span class="risk-opt-label">High</span>
+                <span class="risk-opt-sub">diversified</span>
+              </button>
+            </div>
+            <!-- hidden select for JS compat -->
+            <select id="input-risk" style="display:none">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <div class="field-group">
+              <div class="amount-label">Number of vaults</div>
+              <input type="number" id="input-vaults" value="2" min="1" max="5">
+            </div>
+            <div class="field-group">
+              <div class="amount-label">Venice API Key <span class="field-opt">(optional)</span></div>
+              <input type="password" id="input-venice-key" placeholder="kosongkan → fallback strategy">
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Graph container — shown during execute, fills stage -->
       <div id="graph-container"></div>
-    </main>
 
-    <!-- Right Rail -->
-    <aside id="right-rail">
-      <div id="detail-panel">
-        <div class="detail-placeholder">Click a node to see agent details</div>
+      <!-- Action row — always visible at bottom of stage -->
+      <div class="action-row">
+        <div class="foot-note">Venice AI · privacy-first · <b>no data retention</b></div>
+        <div class="action-btns">
+          <button id="btn-connect" class="btn btn-primary btn-lg">Connect Wallet</button>
+          <button id="btn-generate" class="btn btn-primary btn-lg" disabled>Generate Strategy</button>
+          <button id="btn-approve" class="btn btn-primary btn-lg" disabled>Approve &amp; Execute</button>
+          <button id="btn-reset" class="btn btn-ghost" style="display:none">Reset</button>
+        </div>
       </div>
-    </aside>
-  </div>
 
-  <!-- Main app entry point -->
-  <script type="module" src="app.js"></script>
+    </div>
+  </main>
+
+  <!-- Right rail -->
+  <aside class="rail">
+
+    <!-- Wallet panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Wallet</div>
+        <span class="panel-meta" id="wallet-meta">not connected</span>
+      </div>
+      <div id="wallet-detail" class="empty">— belum connect</div>
+    </div>
+
+    <!-- Agent detail panel (node click) -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Agent</div>
+        <span class="panel-meta">click node di graph</span>
+      </div>
+      <div id="detail-panel" class="empty">—</div>
+    </div>
+
+    <!-- Activity panel -->
+    <div class="panel activity-panel">
+      <div class="panel-head">
+        <div class="panel-title">Activity</div>
+        <span class="panel-meta">agent events · realtime</span>
+      </div>
+      <div id="log-entries" class="activity-log"></div>
+    </div>
+
+  </aside>
+</div>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>

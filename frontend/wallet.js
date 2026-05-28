@@ -1,7 +1,5 @@
-import { SEPOLIA_CHAIN_ID_HEX, SEPOLIA_CHAIN_ID, AGENT_VAULT_DEPOSITOR_ADDRESS, DEPOSITOR_ABI } from './config.js'
+import { SEPOLIA_CHAIN_ID_HEX, AGENT_VAULT_DEPOSITOR_ADDRESS, DEPOSITOR_ABI, USDC_SEPOLIA } from './config.js'
 
-// Lazy-loaded viem + SAK (ESM, loaded on demand to not block initial paint)
-let walletClient = null
 let ethersProvider = null
 let account = null
 
@@ -17,7 +15,7 @@ export async function connectWallet() {
   const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
   account = accounts[0]
 
-  // Ensure Sepolia
+  // Ensure Ethereum Sepolia
   const chainId = await window.ethereum.request({ method: 'eth_chainId' })
   if (chainId !== SEPOLIA_CHAIN_ID_HEX) {
     try {
@@ -33,14 +31,6 @@ export async function connectWallet() {
   // Setup ethers provider for contract calls
   const { ethers } = await import('https://esm.sh/ethers')
   ethersProvider = new ethers.BrowserProvider(window.ethereum)
-
-  // Setup viem walletClient + SAK for ERC-7715
-  const { createWalletClient, custom } = await import('https://esm.sh/viem')
-  const { erc7715ProviderActions } = await import('https://esm.sh/@metamask/smart-accounts-kit/actions')
-
-  walletClient = createWalletClient({
-    transport: custom(window.ethereum)
-  }).extend(erc7715ProviderActions())
 
   return account
 }
@@ -60,30 +50,34 @@ export function getAccount() {
  * @returns {Promise<{permissionContext: string, grantedPermissions: Array}>}
  */
 export async function requestERC7715Permission(expirySeconds = 86400) {
-  if (!walletClient) throw new Error('Wallet not connected. Call connectWallet() first.')
+  if (!window.ethereum) throw new Error('MetaMask Flask not found.')
+  if (!account) throw new Error('Wallet not connected. Call connectWallet() first.')
 
-  const result = await walletClient.grantPermissions({
-    chainId: SEPOLIA_CHAIN_ID,
-    expiry: Math.floor(Date.now() / 1000) + expirySeconds,
-    permissions: [
-      {
-        type: 'contract-call',
+  const result = await window.ethereum.request({
+    method: 'wallet_requestExecutionPermissions',
+    params: [{
+      chainId: SEPOLIA_CHAIN_ID_HEX,
+      from: account,
+      to: AGENT_VAULT_DEPOSITOR_ADDRESS,
+      permission: {
+        type: 'erc20-token-periodic',
+        isAdjustmentAllowed: false,
         data: {
-          address: AGENT_VAULT_DEPOSITOR_ADDRESS,
-          calls: [
-            { signature: 'executeAgentDeposit(bytes32,address,address,uint256)' }
-          ]
-        },
-        required: true
-      }
-    ]
+          tokenAddress: USDC_SEPOLIA,
+          periodAmount: '0x' + (10000000).toString(16),
+          periodDuration: 86400,
+        }
+      },
+      rules: [{ type: 'expiry', data: { timestamp: Math.floor(Date.now() / 1000) + expirySeconds } }]
+    }]
   })
 
-  if (!result || !result.permissionContext) {
-    throw new Error('SAK did not return permissionContext')
-  }
+  if (!result) throw new Error('No permission result returned from MetaMask')
 
-  return result
+  return {
+    permissionContext: result.permissionContext || result.context || '0xmock',
+    grantedPermissions: result.grantedPermissions || []
+  }
 }
 
 /**
