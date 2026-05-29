@@ -366,7 +366,7 @@ const App = () => {
         });
         setSkillSource(veniceResult.skillSource || "default");
         if (veniceResult.generatedBy !== "fallback") {          s = mapVeniceToStrategy(veniceResult, amount, risk);
-          addLog({ event: "OrchestratorPlanned", meta: `strategy via ${veniceResult.generatedBy} · ${veniceResult.rationale?.slice(0, 60)}` });
+          addLog({ event: "OrchestratorPlanned", meta: `strategy via ${veniceResult.generatedBy} · ${(veniceResult.strategy_summary || veniceResult.rationale)?.slice(0, 60)}` });
         }
       } catch (e) {
         console.warn("[app] Strategy AI failed:", e);
