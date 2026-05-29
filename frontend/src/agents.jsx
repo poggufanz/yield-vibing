@@ -284,6 +284,8 @@ const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
   const fallbackTickRef = useRAg(0);
   const fallbackAnimRef = useRAg(null);
   const [useFallback, setUseFallback] = useAg(false);
+  const onAgentClickRef = useRAg(onAgentClick);
+  useEAg(() => { onAgentClickRef.current = onAgentClick; }, [onAgentClick]);
 
   const palette = paletteIsLight ? NVL_COLOR_LIGHT : NVL_COLOR;
 
@@ -320,8 +322,13 @@ const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
       });
       nvlRef.current = nvl;
     } catch (err) {
-      console.error("[AgentGraph] NVL constructor failed, falling back to canvas:", err);
-      setUseFallback(true);
+      const rect = containerRef.current?.getBoundingClientRect();
+      // Only use fallback if container has real dimensions (not a sizing fluke at mount)
+      if (rect && rect.width > 0 && rect.height > 0) {
+        console.warn("[AgentGraph] NVL constructor failed:", err);
+        setUseFallback(true);
+      }
+      // If container is 0px, don't set fallback — let the effect retry when deps change
       return;
     }
 
@@ -332,7 +339,7 @@ const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
         const targets = hits?.nvlTargets ?? hits;
         const hit = targets?.nodes?.[0];
         const id = hit?.data?.id ?? hit?.id;
-        if (id && strategy.agents.find((a) => a.id === id)) onAgentClick(id);
+        if (id && strategy.agents.find((a) => a.id === id)) onAgentClickRef.current?.(id);
       } catch (e) { /* ignore */ }
     };
     containerRef.current.addEventListener("click", onClick);
@@ -343,6 +350,7 @@ const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
       if (pulseRef.current) clearInterval(pulseRef.current);
       if (clickHandlerRef.current && container) {
         container.removeEventListener("click", clickHandlerRef.current);
+        clickHandlerRef.current = null;
       }
       try { nvl.destroy(); } catch (e) { /* ignore */ }
       nvlRef.current = null;
