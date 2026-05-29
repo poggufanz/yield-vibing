@@ -5,7 +5,6 @@
    Node colors driven by state: idle / running / confirmed / failed
    ============================================ */
 import React, { useEffect as useEAg, useRef as useRAg, useState as useAg } from 'react';
-import { NVL } from '@neo4j-nvl/base';
 import { Icon } from './components.jsx';
 import { shortAddr } from './screens.jsx';
 
@@ -293,67 +292,82 @@ const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
   useEAg(() => {
     if (!containerRef.current || useFallback) return;
 
-    const { nodes, rels } = buildGraphTopology(strategy);
-    const options = {
-      layout: "hierarchical",
-      layoutOptions: { direction: "down" },
-      renderer: "canvas",
-      disableTelemetry: true,
-      initialZoom: 0.72,
-      minZoom: 0.2,
-      maxZoom: 2,
-      styling: {
-        defaultNodeColor: palette.idle,
-        defaultRelationshipColor: paletteIsLight ? "#aaa6a0" : "#3a3a35",
-        dropShadowColor: paletteIsLight ? "rgba(176,122,26,0.35)" : "rgba(207,255,61,0.35)",
-        selectedBorderColor: "#cfff3d",
-        nodeDefaultBorderColor: paletteIsLight ? "#95928a" : "#56564f",
-      },
-    };
+    let cancelled = false;
+    let cleanupFn = () => {};
 
-    let nvl;
-    try {
-      nvl = new NVL(containerRef.current, nodes, rels, options, {
-        onLayoutDone: () => {
-          setTimeout(() => {
-            try { if (nvlRef.current) nvlRef.current.fit([]); } catch (e) { /* ignore */ }
-          }, 50);
+    import('@neo4j-nvl/base').then(({ NVL }) => {
+      if (cancelled || !containerRef.current) return;
+
+      const { nodes, rels } = buildGraphTopology(strategy);
+      const options = {
+        layout: "hierarchical",
+        layoutOptions: { direction: "down" },
+        renderer: "canvas",
+        disableTelemetry: true,
+        initialZoom: 0.72,
+        minZoom: 0.2,
+        maxZoom: 2,
+        styling: {
+          defaultNodeColor: palette.idle,
+          defaultRelationshipColor: paletteIsLight ? "#aaa6a0" : "#3a3a35",
+          dropShadowColor: paletteIsLight ? "rgba(176,122,26,0.35)" : "rgba(207,255,61,0.35)",
+          selectedBorderColor: "#cfff3d",
+          nodeDefaultBorderColor: paletteIsLight ? "#95928a" : "#56564f",
         },
-      });
-      nvlRef.current = nvl;
-    } catch (err) {
-      const rect = containerRef.current?.getBoundingClientRect();
-      // Only use fallback if container has real dimensions (not a sizing fluke at mount)
-      if (rect && rect.width > 0 && rect.height > 0) {
-        console.warn("[AgentGraph] NVL constructor failed:", err);
+      };
+
+      let nvl;
+      try {
+        nvl = new NVL(containerRef.current, nodes, rels, options, {
+          onLayoutDone: () => {
+            setTimeout(() => {
+              try { if (nvlRef.current) nvlRef.current.fit([]); } catch (e) { /* ignore */ }
+            }, 50);
+          },
+        });
+        nvlRef.current = nvl;
+      } catch (err) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+          console.warn("[AgentGraph] NVL constructor failed:", err);
+          setUseFallback(true);
+        }
+        return;
+      }
+
+      // Click handler — resolve hit node back to an agent id
+      const onClick = (evt) => {
+        try {
+          const hits = nvl.getHits(evt);
+          const targets = hits?.nvlTargets ?? hits;
+          const hit = targets?.nodes?.[0];
+          const id = hit?.data?.id ?? hit?.id;
+          if (id && strategy.agents.find((a) => a.id === id)) onAgentClickRef.current?.(id);
+        } catch (e) { /* ignore */ }
+      };
+      containerRef.current.addEventListener("click", onClick);
+      clickHandlerRef.current = onClick;
+
+      const container = containerRef.current;
+      cleanupFn = () => {
+        if (pulseRef.current) clearInterval(pulseRef.current);
+        if (clickHandlerRef.current && container) {
+          container.removeEventListener("click", clickHandlerRef.current);
+          clickHandlerRef.current = null;
+        }
+        try { nvl.destroy(); } catch (e) { /* ignore */ }
+        nvlRef.current = null;
+      };
+    }).catch((err) => {
+      if (!cancelled) {
+        console.warn("[AgentGraph] NVL failed to load:", err);
         setUseFallback(true);
       }
-      // If container is 0px, don't set fallback — let the effect retry when deps change
-      return;
-    }
+    });
 
-    // Click handler — resolve hit node back to an agent id
-    const onClick = (evt) => {
-      try {
-        const hits = nvl.getHits(evt);
-        const targets = hits?.nvlTargets ?? hits;
-        const hit = targets?.nodes?.[0];
-        const id = hit?.data?.id ?? hit?.id;
-        if (id && strategy.agents.find((a) => a.id === id)) onAgentClickRef.current?.(id);
-      } catch (e) { /* ignore */ }
-    };
-    containerRef.current.addEventListener("click", onClick);
-    clickHandlerRef.current = onClick;
-
-    const container = containerRef.current;
     return () => {
-      if (pulseRef.current) clearInterval(pulseRef.current);
-      if (clickHandlerRef.current && container) {
-        container.removeEventListener("click", clickHandlerRef.current);
-        clickHandlerRef.current = null;
-      }
-      try { nvl.destroy(); } catch (e) { /* ignore */ }
-      nvlRef.current = null;
+      cancelled = true;
+      cleanupFn();
     };
   }, [strategy, paletteIsLight, useFallback]);
 
