@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { ONE_SHOT_RELAYER_URL, AGENT_VAULT_DEPOSITOR_ADDRESS, SEPOLIA_CHAIN_ID } from './config.js'
+import { grantAgentPermissionOnChain, executeAgentDepositOnChain } from './wallet.js'
 
 /**
  * Encode calldata for executeAgentDeposit.
@@ -111,6 +112,11 @@ export async function submitRelay({ to, calldata, permissionContext }) {
  * @returns {Promise<{txHash: string}>}
  */
 export async function relayGrantPermission({ agentId, vault, maxAmount, expiresAt, permissionContext }) {
+  // Sepolia not supported by 1Shot → broadcast real tx via user signer (tx.wait for real timing)
+  if (!ONESHOT_SUPPORTED_CHAINS.has(String(SEPOLIA_CHAIN_ID))) {
+    const txHash = await grantAgentPermissionOnChain(agentId, vault, maxAmount, expiresAt)
+    return { txHash, status: 'onchain' }
+  }
   const calldata = await encodeGrantAgentPermission(agentId, vault, maxAmount, expiresAt)
   return submitRelay({ to: AGENT_VAULT_DEPOSITOR_ADDRESS, calldata, permissionContext })
 }
@@ -126,6 +132,26 @@ export async function relayGrantPermission({ agentId, vault, maxAmount, expiresA
  * @returns {Promise<{txHash: string}>}
  */
 export async function relayDeposit({ agentId, user, vault, amount, permissionContext }) {
+  // Sepolia not supported by 1Shot → broadcast real tx via user signer (tx.wait for real timing)
+  if (!ONESHOT_SUPPORTED_CHAINS.has(String(SEPOLIA_CHAIN_ID))) {
+    const txHash = await executeAgentDepositOnChain(agentId, user, vault, amount)
+    return { txHash, status: 'onchain' }
+  }
   const calldata = await encodeExecuteAgentDeposit(agentId, user, vault, amount)
   return submitRelay({ to: AGENT_VAULT_DEPOSITOR_ADDRESS, calldata, permissionContext })
+}
+
+/** True when the current chain can't use the 1Shot relayer (→ broadcast on-chain instead). */
+export function isUnsupportedByOneShot() {
+  return !ONESHOT_SUPPORTED_CHAINS.has(String(SEPOLIA_CHAIN_ID))
+}
+
+/** Build a {to,data} grantAgentPermission call for EIP-5792 batching. */
+export async function buildGrantCall({ agentId, vault, maxAmount, expiresAt }) {
+  return { to: AGENT_VAULT_DEPOSITOR_ADDRESS, data: await encodeGrantAgentPermission(agentId, vault, maxAmount, expiresAt) }
+}
+
+/** Build a {to,data} executeAgentDeposit call for EIP-5792 batching. */
+export async function buildDepositCall({ agentId, user, vault, amount }) {
+  return { to: AGENT_VAULT_DEPOSITOR_ADDRESS, data: await encodeExecuteAgentDeposit(agentId, user, vault, amount) }
 }

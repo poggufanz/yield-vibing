@@ -17,7 +17,7 @@ export class WorkerAgent {
    * @param {string} config.sessionId
    * @param {function} config.onEvent - (eventName, data) => void
    */
-  constructor({ agentId, user, vault, amount, permissionContext, sessionId, onEvent }) {
+  constructor({ agentId, user, vault, amount, permissionContext, sessionId, onEvent, batchedHash }) {
     this.agentId = agentId
     this.user = user
     this.vault = vault
@@ -25,6 +25,7 @@ export class WorkerAgent {
     this.permissionContext = permissionContext
     this.sessionId = sessionId
     this.onEvent = onEvent || (() => {})
+    this.batchedHash = batchedHash || null
     this.memoryEntries = []
   }
 
@@ -36,18 +37,20 @@ export class WorkerAgent {
     try {
       this.emit('started', { agentId: this.agentId, vault: this.vault })
 
-      // Step 1: Grant on-chain permission via relay
-      this.emit('step', { agentId: this.agentId, step: 'grant-permission', status: 'pending' })
-      const expiresAt = Math.floor(Date.now() / 1000) + 3600
-      const grantResult = await relayGrantPermission({
-        agentId: this.agentId,
-        vault: this.vault,
-        maxAmount: this.amount,
-        expiresAt,
-        permissionContext: this.permissionContext
-      })
-      this.memoryEntries.push(createEntry('grant', 'success', { txHash: grantResult.txHash }))
-      this.emit('step', { agentId: this.agentId, step: 'grant-permission', status: 'done', txHash: grantResult.txHash })
+      // Step 1: Grant on-chain permission (skipped when already executed in a batch)
+      if (!this.batchedHash) {
+        this.emit('step', { agentId: this.agentId, step: 'grant-permission', status: 'pending' })
+        const expiresAt = Math.floor(Date.now() / 1000) + 3600
+        const grantResult = await relayGrantPermission({
+          agentId: this.agentId,
+          vault: this.vault,
+          maxAmount: this.amount,
+          expiresAt,
+          permissionContext: this.permissionContext
+        })
+        this.memoryEntries.push(createEntry('grant', 'success', { txHash: grantResult.txHash }))
+        this.emit('step', { agentId: this.agentId, step: 'grant-permission', status: 'done', txHash: grantResult.txHash })
+      }
 
       // Step 2: Swap (mocked — emit event only)
       this.emit('step', { agentId: this.agentId, step: 'swap', status: 'pending' })
@@ -61,15 +64,17 @@ export class WorkerAgent {
       this.memoryEntries.push(createEntry('approve', 'success', {}))
       this.emit('step', { agentId: this.agentId, step: 'approve', status: 'done' })
 
-      // Step 4: Deposit via 1Shot relay
+      // Step 4: Deposit — batched (already on-chain) or via relay
       this.emit('step', { agentId: this.agentId, step: 'deposit', status: 'pending' })
-      const depositResult = await relayDeposit({
-        agentId: this.agentId,
-        user: this.user,
-        vault: this.vault,
-        amount: this.amount,
-        permissionContext: this.permissionContext
-      })
+      const depositResult = this.batchedHash
+        ? { txHash: this.batchedHash, status: 'onchain' }
+        : await relayDeposit({
+            agentId: this.agentId,
+            user: this.user,
+            vault: this.vault,
+            amount: this.amount,
+            permissionContext: this.permissionContext
+          })
       const lesson = buildLesson(this.vault, { shares: this.amount.toString() })
       this.memoryEntries.push(createEntry('deposit', 'success', { txHash: depositResult.txHash }, lesson))
       this.emit('step', { agentId: this.agentId, step: 'deposit', status: 'done', txHash: depositResult.txHash })

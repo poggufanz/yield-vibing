@@ -98,6 +98,59 @@ export async function grantAgentPermissionOnChain(agentId, vault, maxAmount, exp
 }
 
 /**
+ * Call executeAgentDeposit on AgentVaultDepositor directly (user signs tx).
+ * @param {string} agentId - bytes32 hex
+ * @param {string} user - permission owner address
+ * @param {string} vault - vault address
+ * @param {bigint} amount - deposit amount in units
+ * @returns {Promise<string>} tx hash
+ */
+export async function executeAgentDepositOnChain(agentId, user, vault, amount) {
+  if (!ethersProvider) throw new Error('Wallet not connected.')
+  const signer = await ethersProvider.getSigner()
+  const contract = new ethers.Contract(AGENT_VAULT_DEPOSITOR_ADDRESS, DEPOSITOR_ABI, signer)
+  const tx = await contract.executeAgentDeposit(agentId, user, vault, amount)
+  await tx.wait()
+  return tx.hash
+}
+
+/**
+ * Batch many calls into ONE user confirmation via EIP-5792 wallet_sendCalls
+ * (MetaMask Flask + EIP-7702: calls run from the user's own account address).
+ * Polls wallet_getCallsStatus for real confirmation timing.
+ * @param {Array<{to:string,data:string}>} calls
+ * @returns {Promise<string|null>} representative tx hash, or null if wallet lacks EIP-5792
+ */
+export async function batchCalls(calls) {
+  if (!window.ethereum || !account) throw new Error('Wallet not connected.')
+  let res
+  try {
+    res = await window.ethereum.request({
+      method: 'wallet_sendCalls',
+      params: [{
+        version: '2.0.0',
+        from: account,
+        chainId: SEPOLIA_CHAIN_ID_HEX,
+        atomicRequired: true,
+        calls: calls.map((c) => ({ to: c.to, data: c.data })),
+      }],
+    })
+  } catch (e) {
+    if (e?.code === 4001) throw e   // user rejected — surface it
+    return null                     // method unsupported → caller falls back
+  }
+  const id = typeof res === 'string' ? res : res?.id
+  for (let i = 0; i < 90; i++) {
+    const st = await window.ethereum.request({ method: 'wallet_getCallsStatus', params: [id] })
+    const code = st?.status
+    if (code === 'CONFIRMED' || code === 200) return st?.receipts?.[0]?.transactionHash || id
+    if (code === 'FAILED' || (typeof code === 'number' && code >= 400)) throw new Error('Batch tx reverted')
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+  throw new Error('Batch confirmation timed out')
+}
+
+/**
  * Read agentPermission from contract.
  * @param {string} userAddress
  * @param {string} agentId - bytes32 hex
