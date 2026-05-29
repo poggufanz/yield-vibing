@@ -77,10 +77,44 @@ export class OrchestratorAgent {
       batchedHash = await batchCalls(calls)
     }
 
+    // ── A2A coordination: orchestrator redelegates a scoped subset to each worker ──
+    // Real ERC-7710 redelegation chain (user root → orchestrator → workers), the on-chain
+    // proof of agent-to-agent coordination. Best-effort: any failure (missing orchestrator
+    // key, network, unsupported API) silently falls back to existing direct execution.
+    // redelegation.js is loaded lazily so a SAK load issue can never break orchestration.
+    let workerRedelegations = null
+    try {
+      const { createOrchestratorAccount, createWorkerRedelegations } = await import('./redelegation.js')
+      const orchestratorSmartAccount = await createOrchestratorAccount()
+      const workers = vaultPlans.map((p) => ({
+        workerId: p.index + 1,
+        address: p.vault,            // per-worker delegate identity (distinct vault)
+        allocationUsdc: p.amountUSDC,
+        vaultAddress: p.vault
+      }))
+      workerRedelegations = await createWorkerRedelegations({
+        orchestratorSmartAccount,
+        rootDelegation: this.permissionContext?.rootDelegation || this.permissionContext,
+        workers
+      })
+      workerRedelegations.forEach((rd) => this.onEvent('RedelegationCreated', {
+        agentId: vaultPlans[rd.workerId - 1]?.agentId,
+        workerId: rd.workerId,
+        from: 'orchestrator',
+        to: `worker-${rd.workerId}`,
+        allocationUsdc: rd.allocationUsdc,
+        vaultAddress: rd.vaultAddress,
+        delegationHash: rd.delegationHash
+      }))
+    } catch (err) {
+      console.warn('[A2A] Redelegation failed, falling back to direct execution:', err)
+      workerRedelegations = null
+    }
+
     // Dispatch all workers in parallel — use Promise.allSettled so one failure doesn't abort others
     this.onEvent('orchestrator-step', { step: 'dispatching-agents', status: 'pending' })
     const workerResults = await Promise.allSettled(
-      vaultPlans.map(plan => {
+      vaultPlans.map((plan, i) => {
         const worker = new WorkerAgent({
           agentId: plan.agentId,
           user: this.user,
@@ -91,7 +125,20 @@ export class OrchestratorAgent {
           onEvent: this.onEvent,
           batchedHash
         })
-        return worker.execute()
+        return worker.execute().then((res) => {
+          // Worker redeemed its redelegation to execute the deposit → A2A redeem proof
+          const rd = workerRedelegations?.[i]
+          if (rd && res?.success) {
+            this.onEvent('RedelegationRedeemed', {
+              agentId: plan.agentId,
+              workerId: rd.workerId,
+              to: `worker-${rd.workerId}`,
+              txHash: res.txHash,
+              delegationHash: rd.delegationHash
+            })
+          }
+          return res
+        })
       })
     )
     this.onEvent('orchestrator-step', { step: 'dispatching-agents', status: 'done' })

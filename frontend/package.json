@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@metamask/smart-accounts-kit": "1.6.0",
+    "ethers": "^6.13.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-force-graph-2d": "^1.27.0",
-    "viem": "^2.21.0",
-    "ethers": "^6.13.0"
+    "viem": "^2.21.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

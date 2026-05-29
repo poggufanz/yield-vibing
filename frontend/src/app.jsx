@@ -122,6 +122,8 @@ const EVENT_STYLES = {
   DepositExecuted:     { icon: "↓", color: "var(--info)" },
   AgentCompleted:      { icon: "✓", color: "var(--ok)" },
   AgentFailed:         { icon: "✕", color: "var(--danger)" },
+  RedelegationCreated:  { icon: "⇄", color: "var(--info)" },
+  RedelegationRedeemed: { icon: "✓", color: "var(--ok)" },
   OrchestratorPlanned: { icon: "·", color: "var(--text-muted)" },
   PermissionGranted:   { icon: "·", color: "var(--text-muted)" },
   Connected:           { icon: "·", color: "var(--text-muted)" },
@@ -536,6 +538,25 @@ const App = () => {
       devApiKey: devApiKey || null,
       sessionId,
       onEvent: (evName, data) => {
+        // A2A redelegation events → activity log (orchestrator → worker hand-off proof)
+        if (evName === "RedelegationCreated") {
+          const vaultLetter = String.fromCharCode(64 + (data.workerId || 1));
+          addLog({
+            event: "RedelegationCreated",
+            agent: `orchestrator → ${data.to}`,
+            meta: `${data.allocationUsdc} USDC · vault ${vaultLetter} · limitedCalls: 3 · ${shortAddr(data.delegationHash)}`,
+          });
+          return;
+        }
+        if (evName === "RedelegationRedeemed") {
+          addLog({
+            event: "RedelegationRedeemed",
+            agent: data.to || `worker-${data.workerId}`,
+            meta: `deposit executed · tx ${shortAddr(data.txHash)}`,
+          });
+          return;
+        }
+
         const agentId = data?.agentId;
         if (!agentId) return;
 
