@@ -9,8 +9,5 @@ export default defineConfig({
     rollupOptions: {
       external: []
     }
-  },
-  optimizeDeps: {
-    exclude: ['@neo4j-nvl/base']
   }
 })

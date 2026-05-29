@@ -39,3 +39,5 @@ desktop.ini
 # Planning (personal notes, not for repo)
 planning/
 docs/superpowers/
+.playwright-mcp/
+.kiro/
