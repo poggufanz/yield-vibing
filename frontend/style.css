@@ -198,6 +198,11 @@ input, select, textarea {
   color: var(--text);
   background: var(--bg-elev);
 }
+.sb-item:disabled,
+.sb-item[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .sb-item svg {
   width: 17px;

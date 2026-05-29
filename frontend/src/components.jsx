@@ -45,12 +45,19 @@ const Sidebar = () => {
     <nav className="sidebar" aria-label="Primary">
       <div className="sb-logo" title="yield/vibing">y/</div>
       {items.map((it) => (
-        <button key={it.key} className={`sb-item ${it.active ? "active" : ""}`} title={it.key} aria-label={it.key}>
+        <button
+          key={it.key}
+          className={`sb-item ${it.active ? "active" : ""}`}
+          title={it.active ? it.key : `${it.key} · soon`}
+          aria-label={it.key}
+          aria-disabled={!it.active}
+          disabled={!it.active}
+        >
           <Icon name={it.icon} />
         </button>
       ))}
       <div className="sb-spacer" />
-      <button className="sb-item" title="notifications" aria-label="notifications">
+      <button className="sb-item" title="notifications · soon" aria-label="notifications" disabled aria-disabled="true">
         <Icon name="bell" />
       </button>
     </nav>
@@ -58,7 +65,7 @@ const Sidebar = () => {
 };
 
 /* ---------- Top bar — minimal, no chip soup ---------- */
-const TopBar = ({ walletConnected }) => {
+const TopBar = ({ walletConnected, onReset }) => {
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -75,8 +82,8 @@ const TopBar = ({ walletConnected }) => {
         <span className="topbar-meta">
           relayer&nbsp;<b>1Shot</b>&nbsp;·&nbsp;gas&nbsp;<b>0</b>
         </span>
-        <button className="icon-btn" title="refresh" aria-label="refresh"><Icon name="refresh" /></button>
-        <button className="icon-btn" title="new deposit" aria-label="new deposit"><Icon name="plus" /></button>
+        <button className="icon-btn" title="restart flow" aria-label="restart flow" onClick={onReset}><Icon name="refresh" /></button>
+        <button className="icon-btn" title="new deposit" aria-label="new deposit" onClick={onReset}><Icon name="plus" /></button>
       </div>
     </header>
   );

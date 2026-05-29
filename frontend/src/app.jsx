@@ -7,6 +7,7 @@ const { useState: useS, useEffect: useE, useRef: useR, useMemo: useM } = React;
 
 /* ---------- Right rail panels ---------- */
 const WalletPanel = ({ phase, address }) => {
+  const [copied, setCopied] = useS(false);
   if (phase === "none") {
     return (
       <div className="panel">
@@ -33,8 +34,27 @@ const WalletPanel = ({ phase, address }) => {
           </div>
         </div>
         <div className="wallet-actions">
-          <button className="wallet-action" title="copy" aria-label="copy"><Icon name="copy" /></button>
-          <button className="wallet-action" title="etherscan" aria-label="etherscan"><Icon name="external" /></button>
+          <button
+            className="wallet-action"
+            title={copied ? "copied" : "copy address"}
+            aria-label="copy address"
+            onClick={async () => {
+              try { await navigator.clipboard.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 1200); }
+              catch (e) { console.warn("[wallet] clipboard failed:", e); }
+            }}
+          >
+            <Icon name={copied ? "check" : "copy"} />
+          </button>
+          <a
+            className="wallet-action"
+            title="view on etherscan"
+            aria-label="view on etherscan"
+            href={`https://sepolia.etherscan.io/address/${address}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name="external" />
+          </a>
         </div>
       </div>
     </div>
@@ -95,7 +115,7 @@ const ActivityPanel = ({ logs }) => {
     <div className="panel" style={{ borderBottom: "none", flex: 1 }}>
       <div className="panel-head">
         <div className="panel-title">Activity</div>
-        <span className="panel-meta">agent events · realtime</span>
+        <span className="panel-meta">{logs.length ? `${logs.length} events · realtime` : "agent events · realtime"}</span>
       </div>
       {logs.length === 0 ? (
         <div className="empty">no events yet</div>
@@ -314,6 +334,14 @@ const App = () => {
 
   const handleAcceptStrategy = () => setStage("connect");
 
+  const handleRegenerate = () => {
+    setStrategy(null);
+    setSkillStates({});
+    setStrategyPhase("thinking");
+    setThinkingPhase(0);
+    addLog({ event: "OrchestratorPlanned", meta: `re-planning · ${amount} usdc · ${risk} risk` });
+  };
+
   /* ----- CONNECT (step 02) ----- */
   const handleConnect = async () => {
     setConnectPhase("connecting");
@@ -392,6 +420,11 @@ const App = () => {
 
   /* ----- PERMISSION (step 04) ----- */
   const handleGrant = () => setPermPhase("prompting");
+
+  const handlePermReject = () => {
+    setPermPhase("idle");
+    addLog({ event: "PermissionRevoked", meta: "permission request rejected by user" });
+  };
 
   const handlePermConfirm = async () => {
     setPermPhase("idle");
@@ -550,9 +583,23 @@ const App = () => {
       },
     });
 
-    orch.dispatch(yvStrategy, strategy.total).then((summary) => {
-      addLog({ event: "OrchestratorPlanned", meta: `done · ${summary.completed} deposited, ${summary.failed} failed` });
-    });
+    orch.dispatch(yvStrategy, strategy.total)
+      .then((summary) => {
+        addLog({ event: "OrchestratorPlanned", meta: `done · ${summary.completed} deposited, ${summary.failed} failed` });
+      })
+      .catch((err) => {
+        console.error("[app] orchestrator dispatch failed:", err);
+        addLog({ event: "AgentFailed", meta: `orchestrator error: ${err?.message || err}` });
+        setExecMap((prev) => {
+          const next = { ...prev };
+          Object.keys(next).forEach((id) => {
+            if (next[id]?.status === "running" || next[id]?.status === "idle") {
+              next[id] = { ...next[id], status: "failed", activeStep: null };
+            }
+          });
+          return next;
+        });
+      });
   };
 
   /* ----- DONE (step 06) ----- */
@@ -634,9 +681,9 @@ const App = () => {
           return <InputScreen amount={amount} setAmount={setAmount} risk={risk} setRisk={setRisk} devApiKey={devApiKey} setDevApiKey={setDevApiKey} onSubmit={handleSubmitPreference} />;
         if (strategyPhase === "thinking")
           return <ThinkingCard phase={thinkingPhase} />;
-        return <StrategyCard strategy={strategy} onProceed={handleAcceptStrategy} />;
+        return <StrategyCard strategy={strategy} onProceed={handleAcceptStrategy} onRegenerate={handleRegenerate} />;
       case "connect":
-        return <ConnectCard phase={connectPhase} onConnect={handleConnect} onUpgrade={handleUpgrade} onDone={handleConnectDone} />;
+        return <ConnectCard phase={connectPhase} onConnect={handleConnect} onUpgrade={handleUpgrade} onDone={handleConnectDone} onCancel={() => { setConnectPhase("idle"); setStage("strategy"); }} />;
       case "skills":
         return (
           <SkillReviewCard
@@ -653,7 +700,7 @@ const App = () => {
           />
         );
       case "permission":
-        return <PermissionCard strategy={strategy} phase={permPhase} onGrant={handleGrant} onConfirm={handlePermConfirm} />;
+        return <PermissionCard strategy={strategy} phase={permPhase} onGrant={handleGrant} onConfirm={handlePermConfirm} onReject={handlePermReject} />;
       case "execute":
         return (
           <ExecuteCard
@@ -665,7 +712,7 @@ const App = () => {
           />
         );
       case "done":
-        return <SuccessCard strategy={strategy} onAgain={handleAgain} />;
+        return <SuccessCard strategy={strategy} onAgain={handleAgain} address={realAddress} />;
       default:
         return null;
     }
@@ -679,7 +726,7 @@ const App = () => {
     <div className="app">
       <Sidebar />
       <main className="main">
-        <TopBar walletConnected={walletPhase !== "none"} />
+        <TopBar walletConnected={walletPhase !== "none"} onReset={handleAgain} />
         <StepRail stage={stage} />
         <div className="stage" key={`${stage}-${strategyPhase}`}>
           {renderStage()}

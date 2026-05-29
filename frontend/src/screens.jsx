@@ -134,7 +134,7 @@ const ThinkingCard = ({ phase }) => {
 /* ============================================
    02 — Connect & EIP-7702 upgrade
    ============================================ */
-const ConnectCard = ({ phase, onConnect, onUpgrade, onDone }) => {
+const ConnectCard = ({ phase, onConnect, onUpgrade, onDone, onCancel }) => {
   return (
     <section className="card enter">
       <div className="eyebrow">
@@ -190,7 +190,7 @@ const ConnectCard = ({ phase, onConnect, onUpgrade, onDone }) => {
           <div className="action-row">
             <div className="foot-note">Authorization tx bakal di-relay sama 1Shot · gas <b>0</b>.</div>
             <div className="flex gap-2">
-              <button className="btn btn-ghost">Cancel</button>
+              <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
               <button className="btn btn-primary" onClick={onUpgrade}>
                 Sign authorization <Icon name="arrow" size={14} />
               </button>
@@ -273,7 +273,7 @@ const UpgradedCallout = ({ onDone }) => (
 /* ============================================
    04 — Permission scope (multi-agent batched)
    ============================================ */
-const PermissionCard = ({ strategy, onGrant, phase, onConfirm }) => {
+const PermissionCard = ({ strategy, onGrant, phase, onConfirm, onReject }) => {
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const expiresFmt = expiresAt.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const agents = strategy?.agents || [];
@@ -352,17 +352,17 @@ const PermissionCard = ({ strategy, onGrant, phase, onConfirm }) => {
       </div>
 
       {phase === "prompting" && (
-        <MmPermissionModal strategy={strategy} onConfirm={onConfirm} />
+        <MmPermissionModal strategy={strategy} onConfirm={onConfirm} onReject={onReject} />
       )}
     </section>
   );
 };
 
-const MmPermissionModal = ({ strategy, onConfirm }) => {
+const MmPermissionModal = ({ strategy, onConfirm, onReject }) => {
   const agents = strategy?.agents || [];
   const total = agents.reduce((s, a) => s + a.allocation, 0);
   return (
-    <div className="modal-backdrop" onClick={onConfirm}>
+    <div className="modal-backdrop" onClick={onReject}>
       <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-eyebrow">wallet_requestExecutionPermissions · batch</div>
         <h3 className="modal-title">Approve {agents.length} execution permission{agents.length === 1 ? "" : "s"}?</h3>
@@ -389,7 +389,7 @@ const MmPermissionModal = ({ strategy, onConfirm }) => {
         </div>
 
         <div className="modal-actions">
-          <button className="btn btn-ghost" onClick={onConfirm}>Reject</button>
+          <button className="btn btn-ghost" onClick={onReject}>Reject</button>
           <button className="btn btn-primary" onClick={onConfirm}>Approve batch</button>
         </div>
       </div>
@@ -400,7 +400,7 @@ const MmPermissionModal = ({ strategy, onConfirm }) => {
 /* ============================================
    06 — Success (multi-agent summary)
    ============================================ */
-const SuccessCard = ({ strategy, onAgain }) => {
+const SuccessCard = ({ strategy, onAgain, address }) => {
   const total = strategy?.total ?? 100;
   const apy = strategy?.blendedApy ?? "8.2";
   const monthly = (total * (Number(apy) / 100) / 12).toFixed(2);
@@ -457,9 +457,14 @@ const SuccessCard = ({ strategy, onAgain }) => {
           gas paid by <b>1Shot relayer</b>
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-ghost">
+          <a
+            className="btn btn-ghost"
+            href={address ? `https://sepolia.etherscan.io/address/${address}` : "https://sepolia.etherscan.io"}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Lihat di Etherscan <Icon name="external" size={13} />
-          </button>
+          </a>
           <button className="btn btn-primary" onClick={onAgain}>
             Deposit lagi <Icon name="plus" size={14} />
           </button>

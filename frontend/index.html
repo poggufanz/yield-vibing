@@ -9,9 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
-  <!-- vis.js for agent graph -->
-  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-
   <!-- React 18 + Babel (in-browser JSX transpilation, no build step) -->
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -20,15 +17,18 @@
 <body>
 <div id="root"></div>
 
-<!-- Bridge: load real Web3 ESM modules → window._yv so Babel JSX can access them -->
+<!-- Bridge: load real Web3 ESM modules + NVL → window globals so Babel JSX can access them -->
 <script type="module">
   import { connectWallet, getAccount, requestERC7715Permission, signSiweForVenice } from './wallet.js'
   import { generateStrategy } from './venice.js'
   import { OrchestratorAgent } from './orchestrator.js'
   import { makeAgentId } from './worker.js'
+  import { NVL } from 'https://esm.sh/@neo4j-nvl/base'
   window._yv = { connectWallet, getAccount, requestERC7715Permission, signSiweForVenice, generateStrategy, OrchestratorAgent, makeAgentId }
   window._yvAgentMap = {}
-  console.log('[YIELD VIBING] Web3 modules loaded. Connect wallet to start.')
+  window._nvl = { NVL }
+  window.dispatchEvent(new Event('nvl-ready'))
+  console.log('[YIELD VIBING] Web3 + NVL modules loaded. Connect wallet to start.')
 </script>
 
 <!-- JSX components — loaded in dependency order -->

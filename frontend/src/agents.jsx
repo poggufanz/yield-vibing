@@ -67,20 +67,20 @@ const makeInitialExecState = (agents) => {
 /* ============================================
    Agent Graph (vis.js Network)
    ============================================ */
-const NODE_COLOR = {
-  idle:      { bg: "#22231d", border: "#56564f", font: "#95958a" },
-  running:   { bg: "#3a2d12", border: "#f0b54a", font: "#ecebe1" },
-  confirmed: { bg: "#1a3322", border: "#6fe39a", font: "#ecebe1" },
-  failed:    { bg: "#3a1a1c", border: "#ff7479", font: "#ecebe1" },
+// NVL nodes use a single fill color + activated/selected glow.
+const NVL_COLOR = {
+  idle:      "#3a3b33",
+  running:   "#f0b54a",
+  confirmed: "#6fe39a",
+  failed:    "#ff7479",
 };
-
-// Light-palette adjustments
-const NODE_COLOR_LIGHT = {
-  idle:      { bg: "#e3dfd2", border: "#95928a", font: "#6a675c" },
-  running:   { bg: "#f6e3b8", border: "#b07a1a", font: "#1a180f" },
-  confirmed: { bg: "#cfe9d6", border: "#2d7a4a", font: "#1a180f" },
-  failed:    { bg: "#f0c8c8", border: "#a83a3a", font: "#1a180f" },
+const NVL_COLOR_LIGHT = {
+  idle:      "#b8b5aa",
+  running:   "#b07a1a",
+  confirmed: "#2d7a4a",
+  failed:    "#a83a3a",
 };
+const GROUP_BASE = { orchestrator: "#cfff3d", worker: null, step: null, vault: "#6366f1" };
 
 const computeOrchestratorState = (execMap) => {
   const vals = Object.values(execMap);
@@ -90,195 +90,131 @@ const computeOrchestratorState = (execMap) => {
   return "idle";
 };
 
+const buildGraphTopology = (strategy) => {
+  const nodes = [];
+  const rels = [];
+  nodes.push({ id: "orchestrator", captions: [{ value: "Orchestrator" }], size: 34 });
+
+  strategy.agents.forEach((a) => {
+    nodes.push({ id: a.id, captions: [{ value: a.name }], size: 26 });
+    rels.push({ id: `e-orch-${a.id}`, from: "orchestrator", to: a.id });
+
+    STEP_IDS.forEach((sid) => {
+      const nid = `${a.id}-${sid}`;
+      nodes.push({ id: nid, captions: [{ value: STEP_LABELS[sid] }], size: 18 });
+      rels.push({ id: `e-${a.id}-${sid}`, from: a.id, to: nid });
+    });
+
+    const vid = `${a.id}-vault`;
+    nodes.push({ id: vid, captions: [{ value: a.vault.name }], size: 22, color: GROUP_BASE.vault });
+    rels.push({ id: `e-${a.id}-vault`, from: `${a.id}-deposit`, to: vid });
+  });
+
+  return { nodes, rels };
+};
+
+const nvlStyleFor = (state, palette) => ({
+  color: palette[state] || palette.idle,
+  activated: state === "running",
+});
+
 const AgentGraph = ({ strategy, execMap, onAgentClick, paletteIsLight }) => {
   const containerRef = useRAg(null);
-  const networkRef = useRAg(null);
-  const dataRef = useRAg({ nodes: null, edges: null });
+  const nvlRef = useRAg(null);
+  const clickHandlerRef = useRAg(null);
   const pulseRef = useRAg(null);
 
-  const palette = paletteIsLight ? NODE_COLOR_LIGHT : NODE_COLOR;
+  const palette = paletteIsLight ? NVL_COLOR_LIGHT : NVL_COLOR;
 
-  // Build nodes/edges (initial)
+  // Build + mount NVL instance when strategy/palette changes
   useEAg(() => {
-    if (!containerRef.current || !window.vis) return;
-
-    const nodes = [];
-    const edges = [];
-
-    // Orchestrator (level 0)
-    nodes.push({
-      id: "orchestrator",
-      label: "Orchestrator",
-      level: 0,
-      shape: "box",
-      group: "orchestrator",
-      margin: 12,
-      widthConstraint: { minimum: 130 },
-    });
-
-    strategy.agents.forEach((a) => {
-      // Worker (level 1)
-      nodes.push({
-        id: a.id,
-        label: `${a.name}\n${a.allocation} USDC`,
-        level: 1,
-        shape: "box",
-        group: "worker",
-        margin: 10,
-        widthConstraint: { minimum: 150 },
-      });
-      edges.push({ from: "orchestrator", to: a.id });
-
-      // Steps (level 2)
-      STEP_IDS.forEach((sid) => {
-        const nid = `${a.id}-${sid}`;
-        nodes.push({
-          id: nid,
-          label: STEP_LABELS[sid],
-          level: 2,
-          shape: "box",
-          group: "step",
-          margin: 8,
-          widthConstraint: { minimum: 80 },
-        });
-        edges.push({ from: a.id, to: nid });
-      });
-
-      // Vault (level 3)
-      const vid = `${a.id}-vault`;
-      nodes.push({
-        id: vid,
-        label: `${a.vault.name}\n${a.vault.protocol}`,
-        level: 3,
-        shape: "box",
-        group: "vault",
-        margin: 10,
-        widthConstraint: { minimum: 140 },
-      });
-      edges.push({ from: `${a.id}-deposit`, to: vid });
-    });
-
-    const visNodes = new window.vis.DataSet(nodes);
-    const visEdges = new window.vis.DataSet(edges);
-    dataRef.current = { nodes: visNodes, edges: visEdges };
+    if (!containerRef.current || !window._nvl) return;
+    const { NVL } = window._nvl;
+    const { nodes, rels } = buildGraphTopology(strategy);
 
     const options = {
-      layout: {
-        hierarchical: {
-          direction: "UD",
-          sortMethod: "directed",
-          levelSeparation: 110,
-          nodeSpacing: 130,
-          treeSpacing: 60,
-          parentCentralization: true,
-        },
-      },
-      physics: { enabled: false },
-      interaction: {
-        hover: true,
-        dragNodes: false,
-        dragView: false,
-        zoomView: false,
-        selectConnectedEdges: false,
-      },
-      nodes: {
-        shape: "box",
-        font: {
-          face: "JetBrains Mono, ui-monospace, monospace",
-          size: 11,
-          multi: false,
-        },
-        borderWidth: 1,
-        borderWidthSelected: 1,
-        shapeProperties: { borderRadius: 4 },
-        labelHighlightBold: false,
-      },
-      edges: {
-        color: { color: paletteIsLight ? "#aaa6a0" : "#3a3a35", highlight: paletteIsLight ? "#aaa6a0" : "#3a3a35" },
-        smooth: { type: "cubicBezier", forceDirection: "vertical", roundness: 0.45 },
-        arrows: { to: { enabled: true, scaleFactor: 0.4, type: "arrow" } },
-        width: 1,
-        selectionWidth: 0,
-      },
-      groups: {
-        orchestrator: { font: { bold: true } },
-        worker: {},
-        step: {},
-        vault: {},
+      layout: "hierarchical",
+      renderer: "canvas",
+      disableTelemetry: true,
+      initialZoom: 0.72,
+      minZoom: 0.2,
+      maxZoom: 2,
+      styling: {
+        defaultNodeColor: palette.idle,
+        defaultRelationshipColor: paletteIsLight ? "#aaa6a0" : "#3a3a35",
+        dropShadowColor: paletteIsLight ? "rgba(176,122,26,0.35)" : "rgba(207,255,61,0.35)",
+        selectedBorderColor: "#cfff3d",
+        nodeDefaultBorderColor: paletteIsLight ? "#95928a" : "#56564f",
       },
     };
 
-    const network = new window.vis.Network(containerRef.current, { nodes: visNodes, edges: visEdges }, options);
-    networkRef.current = network;
-
-    network.on("click", (params) => {
-      const id = params.nodes[0];
-      if (!id) return;
-      if (strategy.agents.find((a) => a.id === id)) {
-        onAgentClick(id);
-      }
+    const nvl = new NVL(containerRef.current, nodes, rels, options, {
+      onLayoutDone: () => nvl.fit([]),
     });
+    nvlRef.current = nvl;
+
+    const onClick = (evt) => {
+      const { nvlTargets } = nvl.getHits(evt);
+      const hit = nvlTargets?.nodes?.[0];
+      const id = hit?.data?.id ?? hit?.id;
+      if (id && strategy.agents.find((a) => a.id === id)) onAgentClick(id);
+    };
+    containerRef.current.addEventListener("click", onClick);
+    clickHandlerRef.current = onClick;
 
     return () => {
       if (pulseRef.current) clearInterval(pulseRef.current);
-      network.destroy();
-      networkRef.current = null;
+      if (clickHandlerRef.current && containerRef.current) {
+        containerRef.current.removeEventListener("click", clickHandlerRef.current);
+      }
+      nvl.destroy();
+      nvlRef.current = null;
     };
   }, [strategy, paletteIsLight]);
 
-  // Apply state colors to nodes whenever execMap changes
+  // Apply execution state → NVL node styles whenever execMap changes
   useEAg(() => {
-    const ds = dataRef.current.nodes;
-    if (!ds) return;
+    const nvl = nvlRef.current;
+    if (!nvl) return;
 
     const orchState = computeOrchestratorState(execMap);
-    const updates = [];
-
-    const styleFor = (state) => {
-      const c = palette[state];
-      return {
-        color: { background: c.bg, border: c.border, hover: { background: c.bg, border: c.border }, highlight: { background: c.bg, border: c.border } },
-        font: { color: c.font, face: "JetBrains Mono, ui-monospace, monospace", size: 11 },
-        borderWidth: state === "running" ? 2 : 1,
-      };
-    };
-
-    updates.push({ id: "orchestrator", ...styleFor(orchState) });
+    const updates = [{ id: "orchestrator", ...nvlStyleFor(orchState, palette), color: orchState === "idle" ? GROUP_BASE.orchestrator : nvlStyleFor(orchState, palette).color }];
 
     strategy.agents.forEach((a) => {
       const ex = execMap[a.id] || { status: "idle", steps: {} };
-      updates.push({ id: a.id, ...styleFor(ex.status) });
+      updates.push({ id: a.id, ...nvlStyleFor(ex.status, palette) });
       STEP_IDS.forEach((sid) => {
-        updates.push({ id: `${a.id}-${sid}`, ...styleFor(ex.steps?.[sid] || "idle") });
+        updates.push({ id: `${a.id}-${sid}`, ...nvlStyleFor(ex.steps?.[sid] || "idle", palette) });
       });
-      // Vault node turns confirmed once deposit confirmed
-      const vaultState = ex.steps?.deposit === "confirmed" ? "confirmed"
-        : ex.steps?.deposit === "running" ? "running"
-        : ex.steps?.deposit === "failed" ? "failed" : "idle";
-      updates.push({ id: `${a.id}-vault`, ...styleFor(vaultState) });
+      const vaultState =
+        ex.steps?.deposit === "confirmed" ? "confirmed" :
+        ex.steps?.deposit === "running" ? "running" :
+        ex.steps?.deposit === "failed" ? "failed" : "idle";
+      const vaultColor = vaultState === "idle" ? GROUP_BASE.vault : palette[vaultState];
+      updates.push({ id: `${a.id}-vault`, color: vaultColor, activated: vaultState === "running" });
     });
 
-    ds.update(updates);
+    nvl.updateElementsInGraph(updates, []);
 
-    // Pulse running nodes: toggle borderWidth 2 ↔ 3
+    // Pulse running nodes: size oscillation
     if (pulseRef.current) clearInterval(pulseRef.current);
-    let on = false;
+    let big = false;
     pulseRef.current = setInterval(() => {
-      on = !on;
-      const runningUpdates = [];
+      const n = nvlRef.current;
+      if (!n) return;
+      big = !big;
+      const pulses = [];
       const orch = computeOrchestratorState(execMap);
-      if (orch === "running") {
-        runningUpdates.push({ id: "orchestrator", borderWidth: on ? 3 : 2 });
-      }
+      if (orch === "running") pulses.push({ id: "orchestrator", size: big ? 38 : 34 });
       strategy.agents.forEach((a) => {
         const ex = execMap[a.id] || { status: "idle", steps: {} };
-        if (ex.status === "running") runningUpdates.push({ id: a.id, borderWidth: on ? 3 : 2 });
+        if (ex.status === "running") pulses.push({ id: a.id, size: big ? 29 : 26 });
         STEP_IDS.forEach((sid) => {
-          if (ex.steps?.[sid] === "running") runningUpdates.push({ id: `${a.id}-${sid}`, borderWidth: on ? 3 : 2 });
+          if (ex.steps?.[sid] === "running") pulses.push({ id: `${a.id}-${sid}`, size: big ? 21 : 18 });
         });
-        if (ex.steps?.deposit === "running") runningUpdates.push({ id: `${a.id}-vault`, borderWidth: on ? 3 : 2 });
+        if (ex.steps?.deposit === "running") pulses.push({ id: `${a.id}-vault`, size: big ? 25 : 22 });
       });
-      if (runningUpdates.length) ds.update(runningUpdates);
+      if (pulses.length) n.updateElementsInGraph(pulses, []);
     }, 550);
 
     return () => {
@@ -421,7 +357,7 @@ const MemoryModal = ({ agentId, strategy, execMap, onClose }) => {
 /* ============================================
    Strategy card (step 02 result) — multi-agent
    ============================================ */
-const StrategyCard = ({ strategy, onProceed }) => {
+const StrategyCard = ({ strategy, onProceed, onRegenerate }) => {
   return (
     <section className="rec-card enter">
       <div className="eyebrow">
@@ -482,7 +418,7 @@ const StrategyCard = ({ strategy, onProceed }) => {
           Reasoning di-generate oleh <b>Venice AI</b>, privacy-first. Allocation di-tuning sesuai risk profile.
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-ghost">Lihat alternatif</button>
+          <button className="btn btn-ghost" onClick={onRegenerate}>Lihat alternatif</button>
           <button className="btn btn-primary" onClick={onProceed}>
             Lanjut · connect wallet <Icon name="arrow" size={14} />
           </button>
