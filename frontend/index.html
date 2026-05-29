@@ -25,7 +25,8 @@
   import { connectWallet, getAccount, requestERC7715Permission, signSiweForVenice } from './wallet.js'
   import { generateStrategy } from './venice.js'
   import { OrchestratorAgent } from './orchestrator.js'
-  window._yv = { connectWallet, getAccount, requestERC7715Permission, signSiweForVenice, generateStrategy, OrchestratorAgent }
+  import { makeAgentId } from './worker.js'
+  window._yv = { connectWallet, getAccount, requestERC7715Permission, signSiweForVenice, generateStrategy, OrchestratorAgent, makeAgentId }
   window._yvAgentMap = {}
   console.log('[YIELD VIBING] Web3 modules loaded. Connect wallet to start.')
 </script>

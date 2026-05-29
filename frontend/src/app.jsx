@@ -426,6 +426,17 @@ const App = () => {
   const startExecution = (ctx) => {
     if (!strategy) return;
     const resolvedCtx = ctx || permContext;
+
+    // Pre-compute sessionId and build hex→designId map BEFORE orchestrator starts.
+    // Orchestrator uses makeAgentId(index, sessionId) — same function, same sessionId = same hex.
+    const sessionId = `session-${Date.now()}`;
+    const agentMap = {};
+    strategy.agents.forEach((a, i) => {
+      const hexId = window._yv.makeAgentId(i, sessionId);
+      agentMap[hexId] = a.id; // 'worker-1', 'worker-2', etc.
+    });
+    window._yvAgentMap = agentMap;
+
     const init = makeInitialExecState(strategy.agents);
     setExecMap(init);
 
@@ -442,20 +453,13 @@ const App = () => {
       permissionContext: resolvedCtx,
       veniceAuth: veniceAuth,
       devApiKey: devApiKey || null,
-      sessionId: `session-${Date.now()}`,
+      sessionId,
       onEvent: (evName, data) => {
         const agentId = data?.agentId;
         if (!agentId) return;
 
-        // Map agentId (bytes32) → design's worker id ('worker-1', etc.)
-        // The orchestrator uses makeAgentId(index, sessionId) — we identify by index from vaultPlans order
-        // Strategy agents are ordered same as vaultPlans, so worker-1 = index 0, etc.
-        // We use agentId directly as the execMap key (matching what makeInitialExecState uses)
-        const getDesignId = (hexId) => {
-          // Find matching agent by checking _yvAgentMap which we'll build on orchestrator-started
-          return window._yvAgentMap?.[hexId] || hexId;
-        };
-        const dId = getDesignId(agentId);
+        // Resolve hex agentId → design worker id ('worker-1', etc.)
+        const dId = window._yvAgentMap?.[agentId] || agentId;
 
         if (evName === "started") {
           setExecMap((prev) => {
