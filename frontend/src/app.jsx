@@ -3,6 +3,7 @@
    Design state machine wired to real wallet.js / venice.js / orchestrator.js
    ============================================ */
 import React, { useState as useS, useEffect as useE, useRef as useR } from 'react';
+import { isDevMode } from './devFlag.js';
 
 import { Icon, Sidebar, TopBar, StepRail, STEPS } from './components.jsx';
 import {
@@ -30,6 +31,7 @@ import { startBackgroundAgent, stopBackgroundAgent, updateAgentConfig, onAgentEv
 import AgentDashboard from './components/AgentDashboard.jsx';
 import HomePage from './components/HomePage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
+import { WalletPanel, PermissionPanel, ActivityPanel, SkillPanel, PalettePicker, PALETTES } from './components/RightRail.jsx';
 import { loadSettings, saveSetting } from './settingsStore.js';
 import { clearUserSkill } from './skillLoader.js';
 
@@ -41,233 +43,8 @@ const loadAgentSettings = () => {
 };
 
 /* ---------- Right rail panels ---------- */
-const WalletPanel = ({ phase, address }) => {
-  const [copied, setCopied] = useS(false);
-  if (phase === "none") {
-    return (
-      <div className="panel">
-        <div className="panel-head">
-          <div className="panel-title">Wallet</div>
-          <span className="panel-meta">not connected</span>
-        </div>
-        <div className="empty">— belum connect</div>
-      </div>
-    );
-  }
-  const isSmart = phase === "upgraded";
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <div className="panel-title">Wallet</div>
-        <span className="panel-meta">{isSmart ? "smart account" : "eoa"}</span>
-      </div>
-      <div className="wallet-row">
-        <div>
-          <div className="wallet-addr">{shortAddr(address)}</div>
-          <div className={`wallet-type ${isSmart ? "active" : ""}`}>
-            {isSmart ? "eip-7702 active" : "regular eoa"}
-          </div>
-        </div>
-        <div className="wallet-actions">
-          <button
-            className="wallet-action"
-            title={copied ? "copied" : "copy address"}
-            aria-label="copy address"
-            onClick={async () => {
-              try { await navigator.clipboard.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 1200); }
-              catch (e) { console.warn("[wallet] clipboard failed:", e); }
-            }}
-          >
-            <Icon name={copied ? "check" : "copy"} />
-          </button>
-          <a
-            className="wallet-action"
-            title="view on etherscan"
-            aria-label="view on etherscan"
-            href={`https://sepolia.etherscan.io/address/${address}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Icon name="external" />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const PermissionPanel = ({ active, strategy, onRevoke }) => {
-  const agents = strategy?.agents || [];
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <div className="panel-title">Active permissions</div>
-        <span className="panel-meta">erc-7715 · batch</span>
-      </div>
-      <div className={`perm-status ${active ? "active" : ""}`}>
-        {active ? `${agents.length} permission · 23h 59m` : "no active permission"}
-      </div>
-      {active && agents.length > 0 && (
-        <>
-          <div className="perm-agent-list">
-            {agents.map((a) => (
-              <div key={a.id} className="perm-agent-row">
-                <span className="idx mono">{a.idx}</span>
-                <div className="meta-col">
-                  <div className="agent-name">{a.id}</div>
-                  <div className="mono agent-vault">{a.vault.addr.slice(0, 8)}…{a.vault.addr.slice(-4)}</div>
-                </div>
-                <div className="mono amount tnum">{a.allocation} USDC</div>
-              </div>
-            ))}
-          </div>
-          <button className="perm-revoke" onClick={onRevoke}>
-            revoke all permissions
-          </button>
-        </>
-      )}
-    </div>
-  );
-};
-
-const EVENT_STYLES = {
-  AgentStarted:        { icon: "●", color: "var(--warn)" },
-  SwapExecuted:        { icon: "↻", color: "var(--info)" },
-  ApproveExecuted:     { icon: "✓", color: "var(--info)" },
-  DepositExecuted:     { icon: "↓", color: "var(--info)" },
-  AgentCompleted:      { icon: "✓", color: "var(--ok)" },
-  AgentFailed:         { icon: "✕", color: "var(--danger)" },
-  RedelegationCreated:  { icon: "⇄", color: "var(--info)" },
-  RedelegationRedeemed: { icon: "✓", color: "var(--ok)" },
-  OrchestratorPlanned: { icon: "·", color: "var(--text-muted)" },
-  PermissionGranted:   { icon: "·", color: "var(--text-muted)" },
-  Connected:           { icon: "·", color: "var(--text-muted)" },
-  Authorized:          { icon: "·", color: "var(--text-muted)" },
-  PermissionRevoked:   { icon: "·", color: "var(--danger)" },
-  SkillApproved:       { icon: "·", color: "var(--text-muted)" },
-};
-
-const ActivityPanel = ({ logs }) => {
-  const [openId, setOpenId] = useS(null);
-  return (
-    <div className="panel" style={{ borderBottom: "none", flex: 1 }}>
-      <div className="panel-head">
-        <div className="panel-title">Activity</div>
-        <span className="panel-meta">{logs.length ? `${logs.length} events · realtime` : "agent events · realtime"}</span>
-      </div>
-      {logs.length === 0 ? (
-        <div className="empty">no events yet</div>
-      ) : (
-        <div className="activity">
-          {logs.slice().reverse().map((l) => {
-            const sty = EVENT_STYLES[l.event] || EVENT_STYLES.OrchestratorPlanned;
-            const open = openId === l.id;
-            return (
-              <div key={l.id}>
-                <div className="act-row" style={{ cursor: "pointer" }} role="button" tabIndex={0} aria-expanded={open}
-                  onClick={() => setOpenId(open ? null : l.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(open ? null : l.id); } }}>
-                  <span className="act-marker mono" aria-hidden="true" style={{ color: sty.color }}>{sty.icon}</span>
-                  <div>
-                    <div className="act-title">
-                      <span className="act-event mono">{l.event}</span>
-                      {l.agent && <span className="act-agent mono">{l.agent}</span>}
-                    </div>
-                    <div className="act-meta">{l.meta}</div>
-                  </div>
-                  <span className="act-time">{l.time} {open ? "▴" : "▾"}</span>
-                </div>
-                {open && (
-                  <div className="act-meta" style={{ padding: "2px 0 8px 22px", fontSize: 10.5, lineHeight: 1.5, opacity: .85 }}>
-                    {l.detail || l.meta}
-                    {l.txHash && (
-                      <div style={{ marginTop: 3 }}>
-                        TX: <a href={`https://sepolia.etherscan.io/tx/${l.txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--info)" }}>{shortAddr(l.txHash)} ↗</a>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const SkillPanel = ({ skillSource, marketLive, vaultLive, onCustomize }) => {
-  const custom = skillSource === "user-local" || skillSource === "user-file";
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <div className="panel-title">Vault Advisor Skill</div>
-        <button className="panel-meta skill-customize" onClick={onCustomize}>customize →</button>
-      </div>
-      <div className="perm-status active">
-        {custom ? "Custom Strategy" : "Default Strategy by Yield Vibing"}
-      </div>
-      <div className="skill-sub">
-        {custom ? "active · user-defined" : "4 vaults · expert framework"}
-        {marketLive != null && ` · ${marketLive ? "🌐 live market data" : "📚 static context"}`}
-        {vaultLive != null && ` · ${vaultLive ? "📊 live vault data" : "🗂 cached vaults"}`}
-      </div>
-    </div>
-  );
-};
 
 /* ---------- Palette picker ---------- */
-const PALETTES = [
-  { id: "acid-yield", name: "Acid Yield", swatch: ["#cfff3d", "#1a1b16", "#ecebe1"], desc: "Default · warm dark + acid lime" },
-  { id: "mono-slate", name: "Mono Slate", swatch: ["#e6edff", "#16182e", "#e8ebf3"], desc: "Refined · cool slate, no chroma" },
-  { id: "liquid-mint", name: "Liquid Mint", swatch: ["#5ee6c5", "#11201b", "#ecebe1"], desc: "Teal undertone · mint accent" },
-  { id: "bone-paper", name: "Bone Paper", swatch: ["#1a180f", "#e3dfd2", "#f4f1e9"], desc: "Light · editorial paper feel" },
-];
-
-const PalettePicker = ({ value, onChange }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-    {PALETTES.map((p) => {
-      const on = p.id === value;
-      return (
-        <button
-          key={p.id}
-          type="button"
-          onClick={() => onChange(p.id)}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "auto 1fr auto",
-            alignItems: "center",
-            gap: 10,
-            padding: "7px 9px",
-            border: on ? ".5px solid rgba(0,0,0,.35)" : ".5px solid rgba(0,0,0,.08)",
-            borderRadius: 7,
-            background: on ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.4)",
-            cursor: "default",
-            textAlign: "left",
-            font: "inherit",
-            color: "inherit",
-          }}
-        >
-          <div style={{ display: "flex", gap: 2 }}>
-            {p.swatch.map((c, i) => (
-              <span key={i} style={{
-                width: 12, height: 12, borderRadius: 3,
-                background: c, border: ".5px solid rgba(0,0,0,.1)",
-              }} />
-            ))}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: 11.5 }}>{p.name}</div>
-            <div style={{ fontSize: 10, color: "rgba(41,38,27,.55)", marginTop: 1, lineHeight: 1.3 }}>
-              {p.desc}
-            </div>
-          </div>
-          <span style={{ fontSize: 11, color: on ? "rgba(41,38,27,.7)" : "transparent" }}>✓</span>
-        </button>
-      );
-    })}
-  </div>
-);
 
 /* ---------- Helpers ---------- */
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -326,6 +103,7 @@ const mapVeniceToStrategy = (veniceResult, amount, risk) => {
 
 /* ---------- App ---------- */
 const App = () => {
+  const devMode = isDevMode();
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   // stage: 'strategy' | 'connect' | 'skills' | 'permission' | 'execute' | 'done'
@@ -351,13 +129,23 @@ const App = () => {
   const [skillDrawerOpen, setSkillDrawerOpen] = useS(false);
 
   const [connectPhase, setConnectPhase] = useS("idle");
+  const [connectError, setConnectError] = useS(null);
 
   // skills
   const [skillStates, setSkillStates] = useS({});
   const [editingTexts, setEditingTexts] = useS({});
 
   const [permPhase, setPermPhase] = useS("idle");
+  const [permError, setPermError] = useS(null);
   const [permActive, setPermActive] = useS(false);
+  const [permExpiresAt, setPermExpiresAt] = useS(null);
+
+  // 30-second tick to refresh countdown displays
+  const [, setClock] = useS(0);
+  useE(() => {
+    const id = setInterval(() => setClock((c) => c + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // execution: map agentId -> { status, steps, hashes, memory, metrics }
   const [execMap, setExecMap] = useS({});
@@ -567,6 +355,7 @@ const App = () => {
   /* ----- CONNECT (step 02) ----- */
   const handleConnect = async () => {
     setConnectPhase("connecting");
+    setConnectError(null);
     try {
       const addr = await connectWallet();
       setRealAddress(addr);
@@ -574,7 +363,8 @@ const App = () => {
       addLog({ event: "Connected", meta: shortAddr(addr) });
     } catch (err) {
       setConnectPhase("idle");
-      addLog({ event: "OrchestratorPlanned", meta: `connect failed: ${err.message}` });
+      setConnectError(err.message);
+      addLog({ event: "AgentFailed", meta: `connect failed: ${err.message}` });
     }
   };
 
@@ -650,10 +440,13 @@ const App = () => {
 
   const handlePermConfirm = async () => {
     setPermPhase("idle");
+    setPermError(null);
     try {
       const permResult = await requestERC7715Permission(86400);
       setPermContext(permResult.permissionContext);
       setPermActive(true);
+      const expiresAtMs = Date.now() + 86400 * 1000;
+      setPermExpiresAt(expiresAtMs);
       const ag = strategy?.agents || [];
       ag.forEach((a) => addLog({
         event: "PermissionGranted",
@@ -666,6 +459,7 @@ const App = () => {
       }, 600);
     } catch (err) {
       setPermPhase("idle");
+      setPermError(err.message);
       addLog({ event: "AgentFailed", meta: `permission denied: ${err.message}` });
     }
   };
@@ -865,8 +659,11 @@ const App = () => {
     setSkillStates({});
     setEditingTexts({});
     setConnectPhase("idle");
+    setConnectError(null);
     setPermActive(false);
     setPermContext(null);
+    setPermError(null);
+    setPermExpiresAt(null);
     setVeniceAuth(null);
     setMarketLive(null);
     setVaultLive(null);
@@ -877,6 +674,7 @@ const App = () => {
 
   const handleRevoke = () => {
     setPermActive(false);
+    setPermExpiresAt(null);
     (strategy?.agents || []).forEach((a) =>
       addLog({ event: "PermissionRevoked", agent: a.id, meta: "agent halted · scope cleared" })
     );
@@ -886,7 +684,7 @@ const App = () => {
   const handleLanguageChange = (lang) => { setLanguage(lang); saveSetting("language", lang); };
   const handleDisconnect = () => {
     stopBackgroundAgent();
-    setRealAddress(null); setConnectPhase("idle"); setPermActive(false); setPermContext(null); setVeniceAuth(null);
+    setRealAddress(null); setConnectPhase("idle"); setPermActive(false); setPermContext(null); setPermExpiresAt(null); setVeniceAuth(null);
     addLog({ event: "PermissionRevoked", meta: "wallet disconnected · session cleared" });
   };
   const handleSwitchNetwork = async () => {
@@ -954,7 +752,7 @@ const App = () => {
           return <ThinkingCard phase={thinkingPhase} times={thinkTimes} />;
         return <StrategyCard strategy={strategy} skillSource={skillSource} onProceed={handleAcceptStrategy} onRegenerate={handleRegenerate} />;
       case "connect":
-        return <ConnectCard phase={connectPhase} onConnect={handleConnect} onUpgrade={handleUpgrade} onDone={handleConnectDone} onCancel={() => { setConnectPhase("idle"); setStage("strategy"); }} />;
+        return <ConnectCard phase={connectPhase} error={connectError} onConnect={handleConnect} onUpgrade={handleUpgrade} onDone={handleConnectDone} onCancel={() => { setConnectPhase("idle"); setStage("strategy"); }} />;
       case "skills":
         return (
           <SkillReviewCard
@@ -971,7 +769,7 @@ const App = () => {
           />
         );
       case "permission":
-        return <PermissionCard strategy={strategy} phase={permPhase} onGrant={handleGrant} onConfirm={handlePermConfirm} onReject={handlePermReject} />;
+        return <PermissionCard strategy={strategy} phase={permPhase} error={permError} onGrant={handleGrant} onConfirm={handlePermConfirm} onReject={handlePermReject} />;
       case "execute":
         return (
           <ExecuteCard
@@ -1022,6 +820,7 @@ const App = () => {
             userAddress={realAddress}
             walletPhase={walletPhase}
             permActive={permActive}
+            permExpiresAt={permExpiresAt}
             permissionCount={strategy?.agents?.length || 0}
             agentEnabled={agentEnabled}
             setAgentEnabled={setAgentEnabled}
@@ -1056,7 +855,6 @@ const App = () => {
                 onEmergencyWithdraw={handleEmergencyWithdraw}
                 onReview={handleReviewRebalance}
                 onDismiss={dismissAlert}
-                onOpenSettings={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
                 onWithdrawSuccess={handleWithdrawSuccess}
                 onNewStrategy={handleAgain}
               />
@@ -1073,7 +871,7 @@ const App = () => {
       </main>
       <aside className="rail">
         <WalletPanel phase={walletPhase} address={realAddress} />
-        <PermissionPanel active={permActive} strategy={strategy} onRevoke={handleRevoke} />
+        <PermissionPanel active={permActive} strategy={strategy} onRevoke={handleRevoke} expiresAt={permExpiresAt} />
         <ActivityPanel logs={logs} />
         <SkillPanel skillSource={skillSource} marketLive={marketLive} vaultLive={vaultLive} onCustomize={() => setSkillDrawerOpen(true)} />
       </aside>
@@ -1110,7 +908,7 @@ const App = () => {
         </div>
       )}
 
-      <TweaksPanel title="Tweaks">
+      {devMode && <TweaksPanel title="Tweaks">
         <TweakSection label="Brand palette" />
         <PalettePicker value={tweaks.palette} onChange={(v) => setTweak("palette", v)} />
 
@@ -1175,7 +973,7 @@ const App = () => {
           </label>
         </div>
 
-        <TweakSection label="Jump to step" />
+        <TweakSection label="Jump to step · dev only" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
           {STEPS.map((s, i) => (
             <button
@@ -1193,7 +991,7 @@ const App = () => {
                 fontWeight: stage === s.id ? 600 : 500,
                 padding: "6px 8px",
                 textAlign: "left",
-                cursor: "default",
+                cursor: "pointer",
                 letterSpacing: "-0.01em",
               }}
             >
@@ -1204,7 +1002,7 @@ const App = () => {
             </button>
           ))}
         </div>
-      </TweaksPanel>
+      </TweaksPanel>}
     </div>
   );
 };

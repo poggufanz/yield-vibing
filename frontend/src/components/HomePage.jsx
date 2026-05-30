@@ -68,6 +68,10 @@ export default function HomePage({
   const [dismissed, setDismissed] = useState(() => new Set())
   const [pulse, setPulse] = useState(() => pulseCache || { vaults: SEED, prev: [], fetchedAt: null, live: false })
 
+  // Read settings once, before any early return (was declared after the no-wallet return → TDZ crash)
+  const settings = loadSettings()
+  const lang = settings.language
+
   const posList = Object.entries(positions)
 
   // Market Pulse: fetch on mount if not cached/stale, refresh every 10 min, cleanup on unmount.
@@ -115,7 +119,7 @@ export default function HomePage({
   const mode = autoHarvest ? 'autopilot' : 'co-pilot'
 
   // Alert banner: first unread high/medium risk alert (dismiss is per-session, local state).
-  const { alertBanner, language: lang } = loadSettings()
+  const { alertBanner } = settings
   const bannerEnabled = alertBanner !== false
   const banner = bannerEnabled && alerts.find((a) => a.kind === 'risk_alert' && (a.severity === 'high' || a.severity === 'medium') && !dismissed.has(a.id))
 

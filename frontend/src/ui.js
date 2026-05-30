@@ -124,3 +124,13 @@ export function setButtonVisible(id, visible) {
   const btn = document.getElementById(id)
   if (btn) btn.style.display = visible ? '' : 'none'
 }
+
+/** Format remaining time until expiresAtMs as "Xh Ym" */
+export const fmtRemaining = (expiresAtMs) => {
+  if (!expiresAtMs) return null;
+  const ms = expiresAtMs - Date.now();
+  if (ms <= 0) return 'expired';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h ${m}m`;
+};

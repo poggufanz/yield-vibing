@@ -153,7 +153,7 @@ const ThinkingCard = ({ phase, times = [] }) => {
 /* ============================================
    02 — Connect & EIP-7702 upgrade
    ============================================ */
-const ConnectCard = ({ phase, onConnect, onUpgrade, onDone, onCancel }) => {
+const ConnectCard = ({ phase, error, onConnect, onUpgrade, onDone, onCancel }) => {
   return (
     <section className="card enter">
       <div className="eyebrow">
@@ -235,6 +235,8 @@ const ConnectCard = ({ phase, onConnect, onUpgrade, onDone, onCancel }) => {
       {phase === "upgraded" && (
         <UpgradedCallout onDone={onDone} />
       )}
+
+      {error && <div role="alert" style={{ color: 'var(--danger)', fontSize: 11, marginTop: 10 }}>{error}</div>}
     </section>
   );
 };
@@ -292,7 +294,7 @@ const UpgradedCallout = ({ onDone }) => (
 /* ============================================
    04 — Permission scope (multi-agent batched)
    ============================================ */
-const PermissionCard = ({ strategy, onGrant, phase, onConfirm, onReject }) => {
+const PermissionCard = ({ strategy, onGrant, phase, error, onConfirm, onReject }) => {
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const expiresFmt = expiresAt.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const agents = strategy?.agents || [];
@@ -373,6 +375,8 @@ const PermissionCard = ({ strategy, onGrant, phase, onConfirm, onReject }) => {
       {phase === "prompting" && (
         <MmPermissionModal strategy={strategy} onConfirm={onConfirm} onReject={onReject} />
       )}
+
+      {error && <div role="alert" style={{ color: 'var(--danger)', fontSize: 11, marginTop: 10 }}>{error}</div>}
     </section>
   );
 };

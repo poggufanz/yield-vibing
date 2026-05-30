@@ -92,7 +92,7 @@ function AlertCard({ alert, lang = 'en', onHarvest, onEmergencyWithdraw, onRevie
 
 export default function AgentDashboard({
   active, positions = {}, alerts = [], vaultMeta = {}, lastUpdated = null, userAddress, settings = {},
-  withdrawEnabled = true, onHarvest, onEmergencyWithdraw, onReview, onDismiss, onOpenSettings, onWithdrawSuccess, onNewStrategy,
+  withdrawEnabled = true, onHarvest, onEmergencyWithdraw, onReview, onDismiss, onWithdrawSuccess, onNewStrategy,
 }) {
   const [now, setNow] = useState(Date.now())
   const [preview, setPreview] = useState(null)

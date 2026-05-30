@@ -4,10 +4,12 @@
 import React, { useState } from 'react'
 import {
   AGENT_VAULT_DEPOSITOR_ADDRESS, MOCK_VAULT_A_ADDRESS, MOCK_VAULT_B_ADDRESS,
+  MOCK_VAULT_C_ADDRESS, MOCK_VAULT_D_ADDRESS,
   SEPOLIA_CHAIN_ID, VENICE_BASE_URL,
 } from '../config.js'
 import { loadSettings, saveSetting, SETTINGS_DEFAULTS } from '../settingsStore.js'
 import { getHistorySummary, clearTransactions, clearStrategies, clearReasoningLog, clearAllHistory } from '../history.js'
+import { fmtRemaining } from '../ui.js'
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—')
 const eyebrow = { fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.06em', color: 'var(--text-faint)', textTransform: 'uppercase' }
@@ -74,7 +76,8 @@ const ApiKeyField = ({ value, onChange, onClear, onTest, testState }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <button type="button" style={miniBtn} onClick={onTest} disabled={testState === 'testing'}>{testState === 'testing' ? 'Testing…' : 'Test connection'}</button>
         {testState === 'ok' && <span style={{ fontSize: 11, color: 'var(--ok)' }}>✓ connected</span>}
-        {testState === 'fail' && <span style={{ fontSize: 11, color: 'var(--danger)' }}>✗ failed</span>}
+        {testState === 'fail' && <span style={{ fontSize: 11, color: 'var(--danger)' }}>✗ rejected (check key)</span>}
+        {testState === 'unreachable' && <span style={{ fontSize: 11, color: 'var(--warn)' }}>⚠ unreachable from browser (CORS/network)</span>}
       </div>
     </div>
   )
@@ -89,8 +92,14 @@ const ContractRow = ({ name, addr }) => (
   </div>
 )
 
+const withTimeout = (ms) => {
+  const c = new AbortController();
+  const id = setTimeout(() => c.abort(), ms);
+  return { signal: c.signal, done: () => clearTimeout(id) };
+}
+
 export default function SettingsPage({
-  userAddress, walletPhase = 'none', permActive = false, permissionCount = 0,
+  userAddress, walletPhase = 'none', permActive = false, permExpiresAt = null, permissionCount = 0,
   agentEnabled = true, setAgentEnabled, agentSettings = {}, setAgentSettings,
   skillSource = 'default', language = 'en', onLanguageChange,
   onChangeSkill, onResetSkill, onResetAgentSettings,
@@ -109,17 +118,35 @@ export default function SettingsPage({
 
   const testVenice = async () => {
     setTest((t) => ({ ...t, venice: 'testing' }))
+    const to = withTimeout(8000)
     try {
-      const res = await fetch(`${VENICE_BASE_URL}/models`, { headers: s.veniceApiKey ? { Authorization: `Bearer ${s.veniceApiKey}` } : {} })
+      const res = await fetch(`${VENICE_BASE_URL}/models`, {
+        headers: s.veniceApiKey ? { Authorization: `Bearer ${s.veniceApiKey}` } : {},
+        signal: to.signal
+      })
       setTest((t) => ({ ...t, venice: res.ok ? 'ok' : 'fail' }))
-    } catch { setTest((t) => ({ ...t, venice: 'fail' })) }
+    } catch (e) {
+      setTest((t) => ({ ...t, venice: 'unreachable' }))
+    } finally {
+      to.done()
+    }
   }
   const testTavily = async () => {
     setTest((t) => ({ ...t, tavily: 'testing' }))
+    const to = withTimeout(8000)
     try {
-      const res = await fetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.tavilyApiKey}` }, body: JSON.stringify({ query: 'defi yield', max_results: 1, include_answer: false }) })
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.tavilyApiKey}` },
+        body: JSON.stringify({ query: 'defi yield', max_results: 1, include_answer: false }),
+        signal: to.signal
+      })
       setTest((t) => ({ ...t, tavily: res.ok ? 'ok' : 'fail' }))
-    } catch { setTest((t) => ({ ...t, tavily: 'fail' })) }
+    } catch (e) {
+      setTest((t) => ({ ...t, tavily: 'unreachable' }))
+    } finally {
+      to.done()
+    }
   }
 
   const yvKeys = () => { const out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('yv_')) out.push(k) } return out }
@@ -196,9 +223,8 @@ export default function SettingsPage({
           </Row>
           <Divider />
           <SubLabel>AI Model · Strategy model</SubLabel>
-          <Radio sel={s.modelPreference === 'flash'} onClick={() => set('modelPreference', 'flash')} title="DeepSeek V4 Flash" desc="recommended · fast" />
-          <Radio sel={s.modelPreference === 'pro'} onClick={() => set('modelPreference', 'pro')} title="DeepSeek V4 Pro" desc="slower · deeper reasoning" />
-          <Radio sel={s.modelPreference === 'venice'} onClick={() => set('modelPreference', 'venice')} title="Venice AI" desc="requires API key" />
+          <Radio sel={s.modelPreference === 'auto'} onClick={() => set('modelPreference', 'auto')} title="Auto (recommended)" desc="Venice AI when wallet-authorized, else server proxy" />
+          <Radio sel={s.modelPreference === 'venice'} onClick={() => set('modelPreference', 'venice')} title="Venice AI" desc="x402 SIWE auth · requires connected wallet" />
           <Row label="Venice API Key" desc="Required for Venice AI model and x402 features. Stored locally, never sent to our servers.">
             <span />
           </Row>
@@ -253,7 +279,7 @@ export default function SettingsPage({
                 <button type="button" style={miniBtn} onClick={onSwitchNetwork}>Switch network</button>
               </Row>
               <Divider />
-              <Row label="Active Permissions" desc={permActive ? `${permissionCount} permission · 23h 59m remaining · erc-7715 · batch` : 'no active permission'}>
+              <Row label="Active Permissions" desc={permActive ? `${permissionCount} permission · ${fmtRemaining(permExpiresAt) || '—'} remaining · erc-7715 · batch` : 'no active permission'}>
                 {permActive && <button type="button" style={dangerBtn} onClick={onRevoke}>Revoke all</button>}
               </Row>
               <Divider />
@@ -310,6 +336,8 @@ export default function SettingsPage({
           <ContractRow name="AgentVaultDepositor" addr={AGENT_VAULT_DEPOSITOR_ADDRESS} />
           <ContractRow name="MockVault A" addr={MOCK_VAULT_A_ADDRESS} />
           <ContractRow name="MockVault B" addr={MOCK_VAULT_B_ADDRESS} />
+          <ContractRow name="MockVault C" addr={MOCK_VAULT_C_ADDRESS} />
+          <ContractRow name="MockVault D" addr={MOCK_VAULT_D_ADDRESS} />
           <Divider />
           <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
             Built for: MetaMask Smart Accounts Kit × 1Shot API × Venice AI Dev Cook-Off
@@ -320,8 +348,12 @@ export default function SettingsPage({
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <a href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ ...miniBtn, textDecoration: 'none' }}>View on GitHub</a>
-            <a href={hqUrl} target="_blank" rel="noopener noreferrer" style={{ ...miniBtn, textDecoration: 'none' }}>HackQuest submission</a>
+            {ghUrl !== '#' && (
+              <a href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ ...miniBtn, textDecoration: 'none' }}>View on GitHub</a>
+            )}
+            {hqUrl !== '#' && (
+              <a href={hqUrl} target="_blank" rel="noopener noreferrer" style={{ ...miniBtn, textDecoration: 'none' }}>HackQuest submission</a>
+            )}
           </div>
         </Section>
       </div>
