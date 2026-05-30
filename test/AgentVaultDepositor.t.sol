@@ -18,8 +18,8 @@ contract AgentVaultDepositorTest is Test {
 
     function setUp() public {
         depositor = new AgentVaultDepositor();
-        vaultA = new MockVault("MockVault USDC-A", address(0));
-        vaultB = new MockVault("MockVault USDC-B", address(0));
+        vaultA = new MockVault("MockVault USDC-A", address(0), 480); // 4.8% APY
+        vaultB = new MockVault("MockVault USDC-B", address(0), 610); // 6.1% APY
         expiry = block.timestamp + 1 days;
     }
 
@@ -29,7 +29,7 @@ contract AgentVaultDepositorTest is Test {
         vm.prank(user);
         depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
 
-        (address vault, uint256 max, uint256 used, uint256 exp, bool active) =
+        (address vault, uint256 max, uint256 used, uint256 exp, bool active, bool aw, bool ah) =
             depositor.agentPermissions(user, agentId1);
 
         assertEq(vault, address(vaultA));
@@ -37,6 +37,8 @@ contract AgentVaultDepositorTest is Test {
         assertEq(used, 0);
         assertEq(exp, expiry);
         assertTrue(active);
+        assertFalse(aw); // withdraw opt-in defaults false
+        assertFalse(ah); // harvest opt-in defaults false
     }
 
     function test_grantAgentPermission_reverts_zero_vault() public {
@@ -63,8 +65,27 @@ contract AgentVaultDepositorTest is Test {
         depositor.revokeAgentPermission(agentId1);
         vm.stopPrank();
 
-        (,,,, bool active) = depositor.agentPermissions(user, agentId1);
+        (,,,, bool active,,) = depositor.agentPermissions(user, agentId1);
         assertFalse(active);
+    }
+
+    // ─── setAgentCapabilities ─────────────────────────────────────────────────
+
+    function test_setAgentCapabilities_sets_flags() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, true, true);
+        vm.stopPrank();
+
+        (,,,,, bool aw, bool ah) = depositor.agentPermissions(user, agentId1);
+        assertTrue(aw);
+        assertTrue(ah);
+    }
+
+    function test_setAgentCapabilities_reverts_when_inactive() public {
+        vm.prank(user);
+        vm.expectRevert(AgentVaultDepositor.PermissionNotActive.selector);
+        depositor.setAgentCapabilities(agentId1, true, true);
     }
 
     // ─── executeAgentDeposit — Success Path ───────────────────────────────────
@@ -77,11 +98,9 @@ contract AgentVaultDepositorTest is Test {
 
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), amount);
 
-        // shares received in vault
         assertEq(vaultA.balanceOf(user), amount);
 
-        // usedAmount updated
-        (, , uint256 used,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used,,,,) = depositor.agentPermissions(user, agentId1);
         assertEq(used, amount);
     }
 
@@ -116,7 +135,7 @@ contract AgentVaultDepositorTest is Test {
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 30e6);
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 40e6);
 
-        (, , uint256 used,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used,,,,) = depositor.agentPermissions(user, agentId1);
         assertEq(used, 70e6);
     }
 
@@ -134,8 +153,8 @@ contract AgentVaultDepositorTest is Test {
         assertEq(vaultA.balanceOf(user), 60e6);
         assertEq(vaultB.balanceOf(user), 80e6);
 
-        (, , uint256 used1,,) = depositor.agentPermissions(user, agentId1);
-        (, , uint256 used2,,) = depositor.agentPermissions(user, agentId2);
+        (, , uint256 used1,,,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used2,,,,) = depositor.agentPermissions(user, agentId2);
         assertEq(used1, 60e6);
         assertEq(used2, 80e6);
     }
@@ -157,7 +176,6 @@ contract AgentVaultDepositorTest is Test {
     // ─── executeAgentDeposit — Fail Paths ────────────────────────────────────
 
     function test_revert_permission_not_active() public {
-        // No grant at all
         vm.expectRevert(AgentVaultDepositor.PermissionNotActive.selector);
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
     }
@@ -176,7 +194,6 @@ contract AgentVaultDepositorTest is Test {
         vm.prank(user);
         depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
 
-        // Warp past expiry
         vm.warp(expiry + 1);
 
         vm.expectRevert(AgentVaultDepositor.PermissionExpired.selector);
@@ -187,7 +204,6 @@ contract AgentVaultDepositorTest is Test {
         vm.prank(user);
         depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
 
-        // Pass vaultB but permission is for vaultA
         vm.expectRevert(AgentVaultDepositor.VaultMismatch.selector);
         depositor.executeAgentDeposit(agentId1, user, address(vaultB), 50e6);
     }
@@ -196,7 +212,6 @@ contract AgentVaultDepositorTest is Test {
         vm.prank(user);
         depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
 
-        // maxAmount = 100e6, try depositing 101e6
         vm.expectRevert(AgentVaultDepositor.AmountExceedsPermission.selector);
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 101e6);
     }
@@ -207,7 +222,6 @@ contract AgentVaultDepositorTest is Test {
 
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 60e6);
 
-        // 60e6 used, maxAmount = 100e6, trying 50e6 more = 110e6 total → revert
         vm.expectRevert(AgentVaultDepositor.AmountExceedsPermission.selector);
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
     }
@@ -216,19 +230,113 @@ contract AgentVaultDepositorTest is Test {
         vm.prank(user);
         depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
 
-        // This will revert
         vm.expectRevert(AgentVaultDepositor.AmountExceedsPermission.selector);
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), 200e6);
 
-        // usedAmount should still be 0
-        (, , uint256 used,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used,,,,) = depositor.agentPermissions(user, agentId1);
         assertEq(used, 0);
+    }
+
+    // ─── executeWithdraw ──────────────────────────────────────────────────────
+
+    function test_executeWithdraw_success() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, true, false);
+        vm.stopPrank();
+
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
+        depositor.executeWithdraw(agentId1, user, address(vaultA), 20e6);
+
+        assertEq(vaultA.balanceOf(user), 30e6);
+    }
+
+    function test_executeWithdraw_emits_event() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, true, false);
+        vm.stopPrank();
+
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
+
+        vm.expectEmit(true, false, false, true);
+        emit AgentVaultDepositor.WithdrawExecuted(user, address(vaultA), 20e6, 20e6);
+        depositor.executeWithdraw(agentId1, user, address(vaultA), 20e6);
+    }
+
+    function test_executeWithdraw_reverts_without_permission() public {
+        vm.prank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
+
+        // allowWithdraw defaults false
+        vm.expectRevert(AgentVaultDepositor.WithdrawNotPermitted.selector);
+        depositor.executeWithdraw(agentId1, user, address(vaultA), 10e6);
+    }
+
+    function test_executeWithdraw_reverts_not_active() public {
+        vm.expectRevert(AgentVaultDepositor.PermissionNotActive.selector);
+        depositor.executeWithdraw(agentId1, user, address(vaultA), 10e6);
+    }
+
+    function test_executeWithdraw_reverts_vault_mismatch() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, true, false);
+        vm.stopPrank();
+
+        vm.expectRevert(AgentVaultDepositor.VaultMismatch.selector);
+        depositor.executeWithdraw(agentId1, user, address(vaultB), 10e6);
+    }
+
+    // ─── executeHarvest ───────────────────────────────────────────────────────
+
+    function test_executeHarvest_recompound_deposits_back() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, false, true);
+        vm.stopPrank();
+
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 100e6);
+        vm.warp(block.timestamp + 365 days); // 100e6 * 480 / 10000 = 4.8e6
+
+        depositor.executeHarvest(agentId1, user, address(vaultA), true);
+
+        // rewards recompounded into vault as new shares
+        assertEq(vaultA.balanceOf(user), 104_800_000);
+    }
+
+    function test_executeHarvest_no_recompound_emits() public {
+        vm.startPrank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.setAgentCapabilities(agentId1, false, true);
+        vm.stopPrank();
+
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
+        vm.warp(block.timestamp + 365 days); // 50e6 * 480 / 10000 = 2.4e6
+
+        vm.expectEmit(true, false, false, true);
+        emit AgentVaultDepositor.HarvestExecuted(user, address(vaultA), 2_400_000);
+        depositor.executeHarvest(agentId1, user, address(vaultA), false);
+
+        // no recompound — balance unchanged
+        assertEq(vaultA.balanceOf(user), 50e6);
+    }
+
+    function test_executeHarvest_reverts_without_permission() public {
+        vm.prank(user);
+        depositor.grantAgentPermission(agentId1, address(vaultA), maxAmount, expiry);
+        depositor.executeAgentDeposit(agentId1, user, address(vaultA), 50e6);
+        vm.warp(block.timestamp + 365 days);
+
+        // allowHarvest defaults false
+        vm.expectRevert(AgentVaultDepositor.HarvestNotPermitted.selector);
+        depositor.executeHarvest(agentId1, user, address(vaultA), false);
     }
 
     // ─── Fuzz Tests ───────────────────────────────────────────────────────────
 
     function testFuzz_deposit_within_limit_succeeds(uint256 amount) public {
-        // Bound amount: 1 wei to maxAmount
         amount = bound(amount, 1, maxAmount);
 
         vm.prank(user);
@@ -237,12 +345,11 @@ contract AgentVaultDepositorTest is Test {
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), amount);
 
         assertEq(vaultA.balanceOf(user), amount);
-        (, , uint256 used,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used,,,,) = depositor.agentPermissions(user, agentId1);
         assertEq(used, amount);
     }
 
     function testFuzz_deposit_over_limit_reverts(uint256 amount) public {
-        // Bound amount: maxAmount+1 to maxAmount*10
         amount = bound(amount, maxAmount + 1, maxAmount * 10);
 
         vm.prank(user);
@@ -264,13 +371,13 @@ contract AgentVaultDepositorTest is Test {
 
         depositor.executeAgentDeposit(agentId1, user, address(vaultA), amount1);
 
-        (, , uint256 used,,) = depositor.agentPermissions(user, agentId1);
+        (, , uint256 used,,,,) = depositor.agentPermissions(user, agentId1);
         assertEq(used, amount1);
 
         uint256 remaining = maxAmount - used;
         if (amount2 <= remaining) {
             depositor.executeAgentDeposit(agentId1, user, address(vaultA), amount2);
-            (, , uint256 usedAfter,,) = depositor.agentPermissions(user, agentId1);
+            (, , uint256 usedAfter,,,,) = depositor.agentPermissions(user, agentId1);
             assertLe(usedAfter, maxAmount);
         } else {
             vm.expectRevert(AgentVaultDepositor.AmountExceedsPermission.selector);
@@ -292,8 +399,8 @@ contract AgentVaultDepositorTest is Test {
         depositor.executeAgentDeposit(id1, user, address(vaultA), amount1);
         depositor.executeAgentDeposit(id2, user, address(vaultB), amount2);
 
-        (, , uint256 used1,,) = depositor.agentPermissions(user, id1);
-        (, , uint256 used2,,) = depositor.agentPermissions(user, id2);
+        (, , uint256 used1,,,,) = depositor.agentPermissions(user, id1);
+        (, , uint256 used2,,,,) = depositor.agentPermissions(user, id2);
 
         assertEq(used1, amount1);
         assertEq(used2, amount2);

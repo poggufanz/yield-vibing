@@ -11,8 +11,9 @@ contract Deploy is Script {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerKey);
 
-        MockVault vaultA = new MockVault("MockVault USDC-A", address(0));
-        MockVault vaultB = new MockVault("MockVault USDC-B", address(0));
+        // apyBps: conservative vault A = 480 (4.8%), balanced vault B = 610 (6.1%)
+        MockVault vaultA = new MockVault("MockVault USDC-A", address(0), 480);
+        MockVault vaultB = new MockVault("MockVault USDC-B", address(0), 610);
         AgentVaultDepositor depositor = new AgentVaultDepositor();
 
         vm.stopBroadcast();
