@@ -457,6 +457,21 @@ const App = () => {
 
   const handleReviewRebalance = (alert) => addLog({ event: 'OrchestratorPlanned', meta: `rebalance review · ${alert.fromVault} → ${alert.toProtocol} (+${alert.apyGain}%)`, detail: `Venice AI flagged ${alert.toProtocol} at ${alert.toApy}% vs ${alert.fromVault} at ${alert.fromApy}% (+${alert.apyGain}%). Rebalancing requests a fresh ERC-7715 permission for the new vault.` });
 
+  // After a withdraw: reduce/remove the position, sync the worker, stop the agent if empty
+  const handleWithdrawSuccess = (vaultAddress, withdrawnUnits) => {
+    const pos = agentData.positions[vaultAddress];
+    const positions = { ...agentData.positions };
+    if (pos) {
+      const newBal = BigInt(pos.balance || '0') - BigInt(withdrawnUnits || '0');
+      if (newBal <= 0n) delete positions[vaultAddress];
+      else positions[vaultAddress] = { ...pos, balance: newBal.toString() };
+    }
+    setAgentData((d) => ({ ...d, positions }));
+    const remaining = (strategy?.agents || []).filter((a) => positions[a.vault.addr]).map((a) => ({ address: a.vault.addr, name: a.vault.name, protocol: a.vault.protocol, depositApy: Number(a.vault.apy) }));
+    if (remaining.length === 0) stopBackgroundAgent(); else updateAgentConfig({ activeVaults: remaining });
+    addLog({ event: 'PermissionRevoked', meta: `withdrew ${shortAddr(vaultAddress)} · position updated`, detail: 'Position balance updated after withdraw; agent monitoring config synced.' });
+  };
+
   /* ----- STRATEGY (step 01) ----- */
   const handleSubmitPreference = () => {
     setStrategyPhase("thinking");
@@ -961,7 +976,7 @@ const App = () => {
 
   // APY/meta per vault for the agent dashboard (positions events don't carry APY)
   const agentVaultMeta = {};
-  (strategy?.agents || []).forEach((a) => { agentVaultMeta[a.vault.addr.toLowerCase()] = { apy: Number(a.vault.apy) }; });
+  (strategy?.agents || []).forEach((a) => { agentVaultMeta[a.vault.addr.toLowerCase()] = { apy: Number(a.vault.apy), protocol: a.vault.protocol }; });
 
   return (
     <div className="app">
@@ -981,11 +996,14 @@ const App = () => {
                 lastUpdated={agentData.lastUpdated}
                 userAddress={realAddress}
                 settings={agentSettings}
+                withdrawEnabled={stage === "done"}
                 onHarvest={handleHarvestNow}
                 onEmergencyWithdraw={handleEmergencyWithdraw}
                 onReview={handleReviewRebalance}
                 onDismiss={dismissAlert}
                 onOpenSettings={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
+                onWithdrawSuccess={handleWithdrawSuccess}
+                onNewStrategy={handleAgain}
               />
             </div>
           </div>

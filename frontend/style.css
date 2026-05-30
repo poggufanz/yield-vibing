@@ -2386,3 +2386,29 @@ input, select, textarea {
 .hist-card-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
 .hist-card-tags { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
 .hist-reason { font-size: 12.5px; color: var(--text); line-height: 1.5; margin-top: 8px; font-style: italic; }
+
+
+/* ============================================
+   Global scrollbar hide — maintain scroll functionality
+   ============================================ */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================
+   Remove number input spinners globally
+   ============================================ */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

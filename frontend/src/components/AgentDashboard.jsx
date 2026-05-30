@@ -3,6 +3,7 @@
 // "Users should always feel like they're driving, even when the agent does the work."
 import React, { useState, useEffect } from 'react'
 import AgentActionPreview from './AgentActionPreview.jsx'
+import WithdrawModal from './WithdrawModal.jsx'
 
 const POSITION_INTERVAL = 5 * 60 * 1000 // mirrors worker INTERVALS.position
 const u = (units) => Number(units || 0) / 1e6
@@ -86,10 +87,11 @@ function AlertCard({ alert, onHarvest, onEmergencyWithdraw, onReview, onDismiss 
 
 export default function AgentDashboard({
   active, positions = {}, alerts = [], vaultMeta = {}, lastUpdated = null, userAddress, settings = {},
-  onHarvest, onEmergencyWithdraw, onReview, onDismiss, onOpenSettings,
+  withdrawEnabled = true, onHarvest, onEmergencyWithdraw, onReview, onDismiss, onOpenSettings, onWithdrawSuccess, onNewStrategy,
 }) {
   const [now, setNow] = useState(Date.now())
   const [preview, setPreview] = useState(null)
+  const [withdrawVault, setWithdrawVault] = useState(null)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -100,7 +102,6 @@ export default function AgentDashboard({
   const totalUnits = posList.reduce((s, [, p]) => s + Number(p.balance || 0), 0)
   const earnedUnits = posList.reduce((s, [, p]) => s + Number(p.unclaimedRewards || 0), 0)
   const blendedApy = totalUnits > 0 ? posList.reduce((s, [a, p]) => s + Number(p.balance || 0) * apyOf(a), 0) / totalUnits : 0
-  const mode = settings.autoHarvest ? 'autopilot' : 'co-pilot'
   const nextCheck = lastUpdated ? lastUpdated + POSITION_INTERVAL : null
 
   // Preview interceptors — the actual execution runs on confirm (props.onHarvest/onEmergencyWithdraw)
@@ -126,9 +127,6 @@ export default function AgentDashboard({
             <span className="yv-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: active ? 'var(--ok)' : 'var(--text-muted)', animation: active ? 'yvpulse 1.6s ease-in-out infinite' : 'none' }} />
             {active ? 'monitoring' : 'stopped'}
           </span>
-          <button onClick={onOpenSettings} title="Adjust autonomy in settings" style={{ appearance: 'none', border: '.5px solid rgba(255,255,255,.18)', borderRadius: 5, background: 'rgba(255,255,255,.06)', color: 'inherit', font: 'inherit', fontSize: 10, padding: '2px 7px', cursor: 'pointer' }}>
-            mode: {mode}
-          </button>
         </span>
       </div>
 
@@ -144,7 +142,10 @@ export default function AgentDashboard({
       {/* CHANGE 2: Enriched positions */}
       <div style={{ fontSize: 10, letterSpacing: '.04em', opacity: .6, margin: '2px 0 4px' }}>POSITIONS</div>
       {posList.length === 0 ? (
-        <div className="empty">no positions tracked</div>
+        <div className="empty" style={{ lineHeight: 1.6 }}>
+          No active positions. Start a new strategy to begin farming.
+          {onNewStrategy && <div><button style={{ ...btn, marginLeft: 0 }} onClick={onNewStrategy}>New Strategy</button></div>}
+        </div>
       ) : (
         posList.map(([addr, p]) => {
           const apy = apyOf(addr)
@@ -161,7 +162,15 @@ export default function AgentDashboard({
               <div style={{ height: 4, background: 'rgba(255,255,255,.08)', borderRadius: 3, marginTop: 3 }}>
                 <div style={{ height: '100%', width: `${pct}%`, background: 'var(--ok)', borderRadius: 3 }} />
               </div>
-              <div style={{ fontSize: 9.5, opacity: .5, marginTop: 1 }}>{pct.toFixed(0)}% of portfolio</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                <span style={{ fontSize: 9.5, opacity: .5 }}>{pct.toFixed(0)}% of portfolio</span>
+                <button
+                  style={{ ...btn, marginTop: 0, marginRight: 0, opacity: withdrawEnabled ? 1 : .4, cursor: withdrawEnabled ? 'pointer' : 'not-allowed' }}
+                  disabled={!withdrawEnabled}
+                  title={withdrawEnabled ? 'Withdraw from this position' : 'Withdraw unavailable during active execution'}
+                  onClick={() => setWithdrawVault({ vault: { name: p.vaultName, address: addr, protocol: vaultMeta[addr.toLowerCase()]?.protocol || '', apy }, balance: p.balance, unclaimedRewards: p.unclaimedRewards })}
+                >Withdraw</button>
+              </div>
             </div>
           )
         })
@@ -185,6 +194,16 @@ export default function AgentDashboard({
       )}
 
       <AgentActionPreview preview={preview} onConfirm={confirmPreview} onCancel={() => setPreview(null)} />
+      {withdrawVault && (
+        <WithdrawModal
+          vault={withdrawVault.vault}
+          balance={withdrawVault.balance}
+          unclaimedRewards={withdrawVault.unclaimedRewards}
+          userAddress={userAddress}
+          onClose={() => setWithdrawVault(null)}
+          onSuccess={onWithdrawSuccess || (() => {})}
+        />
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { SEPOLIA_CHAIN_ID_HEX, AGENT_VAULT_DEPOSITOR_ADDRESS, DEPOSITOR_ABI, USDC_SEPOLIA } from './config.js'
+import { SEPOLIA_CHAIN_ID_HEX, AGENT_VAULT_DEPOSITOR_ADDRESS, DEPOSITOR_ABI, VAULT_ABI, USDC_SEPOLIA } from './config.js'
 
 let ethersProvider = null
 let account = null
@@ -132,6 +132,15 @@ export async function executeHarvestOnChain(agentId, user, vault, recompound) {
   const tx = await contract.executeHarvest(agentId, user, vault, recompound, { gasLimit: 300000n })
   await tx.wait()
   return tx.hash
+}
+
+/** Read a vault's on-chain depositTimestamp for a user (unix secs, 0 if none/unavailable). */
+export async function readVaultDepositTimestamp(vault, user) {
+  if (!ethersProvider) return 0
+  try {
+    const contract = new ethers.Contract(vault, VAULT_ABI, ethersProvider)
+    return Number(await contract.depositTimestamp(user))
+  } catch { return 0 }
 }
 
 /**

@@ -35,20 +35,23 @@ const TxList = ({ rows }) => {
       <div className="tx-row tx-head mono">
         <span>status</span><span>txn hash</span><span>vault</span><span>amount</span><span>age</span>
       </div>
-      {rows.map((r) => (
+      {rows.map((r) => {
+        const isWithdraw = r.type === 'withdraw';
+        return (
         <div key={r.id} className="tx-row">
           <span className="tx-status" title="confirmed"><Icon name="check" size={13} /></span>
           <a className="tx-hash mono" href={`https://sepolia.etherscan.io/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer">
             {short(r.txHash)} <Icon name="external" size={11} />
           </a>
           <span className="tx-vault">
-            {r.vaultName}
-            <span className="tx-sub mono">{r.protocol} · {r.apy}% APY · {r.workerId}</span>
+            {isWithdraw ? `Withdrew ← ${r.vaultName}` : `Deposited → ${r.vaultName}`}
+            <span className="tx-sub mono">{[r.protocol, r.apy ? `${r.apy}% APY` : null, r.workerId || (isWithdraw ? 'manual withdraw' : null)].filter(Boolean).join(' · ')}</span>
           </span>
-          <span className="tx-amount mono tnum">{r.amountUsdc} USDC</span>
+          <span className="tx-amount mono tnum" style={{ color: isWithdraw ? 'var(--warn)' : 'var(--ok)' }}>{isWithdraw ? '↑' : '↓'} {r.amountUsdc} USDC</span>
           <span className="tx-age mono">{timeAgo(r.timestamp)}</span>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

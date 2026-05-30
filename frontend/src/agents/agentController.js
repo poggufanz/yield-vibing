@@ -91,3 +91,10 @@ export async function emergencyWithdraw(vaultAddress, amount, userAddress) {
   saveTransaction({ txHash, vaultName: 'Emergency Withdraw', vaultAddress, amountUsdc: Number(amount) / 1e6, workerLabel: 'RiskWatcher', network: 'sepolia' })
   return txHash
 }
+
+/** Manual withdraw from the dashboard with a user-specified amount (units, string/bigint).
+ *  Routes through relayWithdraw (not emergencyWithdraw) so the caller logs ONE history
+ *  entry with the real vault metadata. Returns { txHash, status }. */
+export async function withdrawFromVault(vaultAddress, amount, userAddress) {
+  return relayWithdraw({ user: userAddress, vault: vaultAddress, amount })
+}
