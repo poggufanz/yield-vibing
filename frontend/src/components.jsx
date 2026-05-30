@@ -46,7 +46,9 @@ const Sidebar = ({ view = "flow", onNavigate }) => {
   ];
   return (
     <nav className="sidebar" aria-label="Primary">
-      <div className="sb-logo" title="vibing/farmer">v/</div>
+      <div className="sb-logo" title="vibing/farmer">
+        <img src="/vibing_farmer.logo.svg" alt="logo" style={{ width: 18, height: 18 }} />
+      </div>
       {items.map((it) => {
         const nav = !!it.view;
         const active = nav && view === it.view;

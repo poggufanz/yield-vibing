@@ -97,6 +97,7 @@ export default function HomePage({
     return (
       <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 28, textAlign: 'center' }}>
         <div style={{ maxWidth: 420 }}>
+          <img src="/vibing_farmer.logo.svg" alt="Vibing Farmer Logo" style={{ width: 80, height: 80, margin: '0 auto 24px', display: 'block' }} />
           <div className="brand" style={{ justifyContent: 'center', fontSize: 22 }}>
             <span>vibing</span><span className="slash">/</span><span className="vibing">farmer</span>
           </div>
