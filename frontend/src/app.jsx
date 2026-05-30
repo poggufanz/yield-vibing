@@ -165,7 +165,7 @@ const ActivityPanel = ({ logs }) => {
   );
 };
 
-const SkillPanel = ({ skillSource, marketLive, onCustomize }) => {
+const SkillPanel = ({ skillSource, marketLive, vaultLive, onCustomize }) => {
   const custom = skillSource === "user-local" || skillSource === "user-file";
   return (
     <div className="panel">
@@ -179,6 +179,7 @@ const SkillPanel = ({ skillSource, marketLive, onCustomize }) => {
       <div className="skill-sub">
         {custom ? "active · user-defined" : "4 vaults · expert framework"}
         {marketLive != null && ` · ${marketLive ? "🌐 live market data" : "📚 static context"}`}
+        {vaultLive != null && ` · ${vaultLive ? "📊 live vault data" : "🗂 cached vaults"}`}
       </div>
     </div>
   );
@@ -260,9 +261,12 @@ const mapVeniceToStrategy = (veniceResult, amount, risk) => {
   const PROTOCOLS = ["aave-v3", "morpho-blue", "pendle-v2"];
   const ROLES = ["Conservative · lending", "Balanced · liquidity provision", "Aggressive · leveraged yield"];
   const byAddr = (addr) => VAULT_CATALOG.find((c) => c.address.toLowerCase() === String(addr).toLowerCase()) || {};
+  const usedVaults = veniceResult.vaultsUsed || [];
+  const byLive = (v) => usedVaults.find((x) => x.protocol === v.protocol) || usedVaults.find((x) => x.address?.toLowerCase() === String(v.address).toLowerCase()) || {};
   const list = veniceResult.selected_vaults || [];
   const agents = list.map((v, i) => {
     const cat = byAddr(v.address);
+    const live = byLive(v);
     return {
       id: `worker-${i + 1}`,
       idx: String(i + 1).padStart(2, "0"),
@@ -274,11 +278,14 @@ const mapVeniceToStrategy = (veniceResult, amount, risk) => {
       riskTier: v.risk_tier,                     // AI metadata → UI
       yieldSource: v.yield_source_type,          // AI metadata → UI
       vault: {
-        name: v.name || cat.name || `MockVault ${i + 1}`,
-        protocol: v.protocol || cat.protocol || PROTOCOLS[i] || "aave-v3",
-        apy: String(v.expected_apy ?? cat.apy ?? 4.8),
-        drawdown: cat.drawdown || "-1.8",
+        name: v.name || live.name || cat.name || `MockVault ${i + 1}`,
+        protocol: v.protocol || live.protocol || cat.protocol || PROTOCOLS[i] || "aave-v3",
+        apy: String(v.expected_apy ?? live.apy ?? cat.apy ?? 4.8),
+        drawdown: live.drawdown || cat.drawdown || "-1.8",
         addr: v.address,
+        tvl: v.tvlFormatted || live.tvlFormatted || "N/A",
+        isLiveData: live.source === "defiLlama",
+        defillamaPool: live.defillamaPool || null,
       },
     };
   });
@@ -307,6 +314,7 @@ const App = () => {
   const [strategy, setStrategy] = useS(null);
   const [skillSource, setSkillSource] = useS("default");
   const [marketLive, setMarketLive] = useS(null); // Tavily live market context used? null until first generation
+  const [vaultLive, setVaultLive] = useS(null); // DeFiLlama live vault data used? null until first generation
   const [skillDrawerOpen, setSkillDrawerOpen] = useS(false);
 
   const [connectPhase, setConnectPhase] = useS("idle");
@@ -393,6 +401,7 @@ const App = () => {
         });
         setSkillSource(veniceResult.skillSource || "default");
         setMarketLive(!!veniceResult.marketContextUsed);
+        setVaultLive(veniceResult.vaultDataSource === "defiLlama");
         if (veniceResult.generatedBy !== "fallback") {          s = mapVeniceToStrategy(veniceResult, amount, risk);
           addLog({ event: "OrchestratorPlanned", meta: `strategy via ${veniceResult.generatedBy} · ${(veniceResult.strategy_summary || veniceResult.rationale)?.slice(0, 60)}` });
         }
@@ -732,6 +741,7 @@ const App = () => {
     setPermContext(null);
     setVeniceAuth(null);
     setMarketLive(null);
+    setVaultLive(null);
     setExecMap({});
     setLogs([]);
     agentMapRef.current = {};
@@ -855,7 +865,7 @@ const App = () => {
         <WalletPanel phase={walletPhase} address={realAddress} />
         <PermissionPanel active={permActive} strategy={strategy} onRevoke={handleRevoke} />
         <ActivityPanel logs={logs} />
-        <SkillPanel skillSource={skillSource} marketLive={marketLive} onCustomize={() => setSkillDrawerOpen(true)} />
+        <SkillPanel skillSource={skillSource} marketLive={marketLive} vaultLive={vaultLive} onCustomize={() => setSkillDrawerOpen(true)} />
       </aside>
 
       <SkillDrawer

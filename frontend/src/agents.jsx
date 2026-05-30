@@ -401,6 +401,8 @@ const StrategyCard = ({ strategy, skillSource, onProceed, onRegenerate }) => {
                 <div className="strategy-agent-name">{a.name}</div>
                 <div className="mono strategy-agent-meta">
                   {a.vault.name} · {a.vault.protocol}
+                  {a.vault.tvl && a.vault.tvl !== "N/A" ? ` · TVL ${a.vault.tvl}` : ""}
+                  {a.vault.isLiveData ? " · 🟢 live" : ""}
                 </div>
               </div>
             </div>

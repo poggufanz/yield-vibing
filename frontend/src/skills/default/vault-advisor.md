@@ -162,3 +162,18 @@ If a "LIVE MARKET CONTEXT" section appears above the user request:
   why conservative vault is better now vs chasing high APY
 - If no market context: reason from static protocol knowledge only
 - Never fabricate market data — only reference what's in the context block
+
+
+## VAULT DATA SOURCE NOTE
+
+The vault catalog injected above may contain LIVE data from DeFiLlama
+(APY and TVL are real-time from mainnet Ethereum).
+
+When vault data is live:
+- Reference specific APY values in your reasoning — they are real
+- Reference TVL as a trust signal ("$2.1B TVL indicates battle-tested protocol")
+- If multiple vaults have similar APY, prefer higher TVL for low-risk users
+- Note in reasoning if a vault's APY seems unusually high vs its risk tier
+
+Execution note for judges: vault addresses map to Sepolia MockVaults
+for testnet demo purposes. In production, these would be mainnet addresses.

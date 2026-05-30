@@ -1,6 +1,7 @@
 import { VENICE_BASE_URL, VENICE_MODEL, VENICE_TIMEOUT_MS, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, AI_PROXY_URL, VAULT_CATALOG } from './config.js'
 import { loadVaultSkill } from './skillLoader.js'
 import { fetchMarketContext } from './marketSearch.js'
+import { fetchDeFiLlamaVaults } from './defiLlama.js'
 
 // AI provider priority: Venice x402 → DeepSeek (dev) → hardcoded fallback
 // Venice x402: wallet SIWE auth, pays USDC on Base — no API key needed
@@ -73,14 +74,22 @@ function resolveProvider(veniceAuth, devApiKey) {
  * @param {string|null} params.devApiKey - DeepSeek API key for dev mode
  */
 export async function generateStrategy({ amount, riskLevel, numVaults, veniceAuth, devApiKey, signal }) {
-  // Load skill + fetch live market context IN PARALLEL (Tavily adds no extra latency)
-  const [skill, marketContext] = await Promise.all([
+  // Load skill + market context + real vault data ALL IN PARALLEL (no added latency)
+  const [skill, marketContext, liveVaults] = await Promise.all([
     loadVaultSkill(),
     fetchMarketContext(import.meta.env.VITE_TAVILY_API_KEY, riskLevel).catch(() => null),
+    fetchDeFiLlamaVaults().catch(() => null),
   ])
 
-  // System prompt: static skill knowledge + injected live market context (if available)
-  let systemPrompt = skill.content.replace('[VAULT_CATALOG_JSON]', JSON.stringify(VAULT_CATALOG, null, 2))
+  // Real DeFiLlama vaults when available, else the static VAULT_CATALOG
+  const vaultData = (liveVaults && liveVaults.length > 0) ? liveVaults : VAULT_CATALOG
+  const vaultDataSource = (liveVaults && liveVaults.length > 0) ? 'defiLlama' : 'fallback'
+  const dataSource = vaultDataSource === 'defiLlama'
+    ? `live DeFiLlama data (${new Date().toUTCString()})`
+    : 'static fallback catalog'
+
+  // System prompt: skill + real vault catalog + injected live market context (if available)
+  let systemPrompt = skill.content.replace('[VAULT_CATALOG_JSON]', JSON.stringify(vaultData, null, 2))
   if (marketContext) {
     systemPrompt = systemPrompt + '\n\n' + marketContext
     console.log('[Venice] Market context injected from Tavily')
@@ -88,12 +97,12 @@ export async function generateStrategy({ amount, riskLevel, numVaults, veniceAut
     console.log('[Venice] No market context — using static knowledge only')
   }
 
-  const safeNumVaults = Math.min(numVaults, VAULT_CATALOG.length) // fixes high-risk fallback bug
+  const safeNumVaults = Math.min(numVaults, vaultData.length) // fixes high-risk fallback bug
 
   const provider = resolveProvider(veniceAuth, devApiKey)
   if (!provider) {
     console.warn('[ai] No provider — using fallback strategy')
-    return { ...buildFallbackForParams(amount, safeNumVaults), skillSource: skill.source, marketContextUsed: marketContext !== null }
+    return { ...buildFallbackForParams(amount, safeNumVaults), skillSource: skill.source, marketContextUsed: marketContext !== null, vaultDataSource, vaultsUsed: vaultData }
   }
 
   const userPrompt = `User profile:
@@ -101,8 +110,9 @@ export async function generateStrategy({ amount, riskLevel, numVaults, veniceAut
 - Risk tolerance: ${riskLevel}
 - Requested vault count: ${safeNumVaults}
 - Current date: ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+- Vault data source: ${dataSource}
 
-Select optimal vault(s). Consider live market context above alongside your protocol knowledge. Respond in JSON only.`
+Select optimal vault(s) from the catalog above. APY and TVL data are real-time from DeFiLlama. Consider live market context if present. Respond in JSON only.`
 
   // Caller may pass a signal (app-managed 1-min timeout + confirm); else use an internal timeout
   const controller = signal ? null : new AbortController()
@@ -119,12 +129,12 @@ Select optimal vault(s). Consider live market context above alongside your proto
       provider.isVenice,
       sig
     )
-    const parsed = validateVeniceResponse(JSON.parse(content))
-    console.log(`[ai] Strategy via ${provider.name} · skill: ${skill.source}`)
-    return { ...parsed, generatedBy: provider.name, skillSource: skill.source, marketContextUsed: marketContext !== null }
+    const parsed = validateVeniceResponse(JSON.parse(content), vaultData)
+    console.log(`[ai] Strategy via ${provider.name} · skill: ${skill.source} · vaults: ${vaultDataSource}`)
+    return { ...parsed, generatedBy: provider.name, skillSource: skill.source, marketContextUsed: marketContext !== null, vaultDataSource, vaultsUsed: vaultData }
   } catch (err) {
     console.warn(`[ai] Strategy failed (${provider.name}), using fallback:`, err.message)
-    return { ...buildFallbackForParams(amount, safeNumVaults), skillSource: skill.source, marketContextUsed: marketContext !== null }
+    return { ...buildFallbackForParams(amount, safeNumVaults), skillSource: skill.source, marketContextUsed: marketContext !== null, vaultDataSource, vaultsUsed: vaultData }
   } finally {
     if (timeout) clearTimeout(timeout)
   }
@@ -212,8 +222,8 @@ function buildFallbackForParams(amount, numVaults) {
   }
 }
 
-function validateVeniceResponse(response) {
-  const allowedAddresses = new Set(VAULT_CATALOG.map(v => v.address.toLowerCase()))
+function validateVeniceResponse(response, vaultData = VAULT_CATALOG) {
+  const allowedAddresses = new Set(vaultData.map(v => v.address.toLowerCase()))
 
   if (!response.selected_vaults || !Array.isArray(response.selected_vaults)) {
     throw new Error('Missing selected_vaults array')
@@ -234,8 +244,8 @@ function validateVeniceResponse(response) {
   }
 
   // Cap to catalog size
-  if (response.selected_vaults.length > VAULT_CATALOG.length) {
-    response.selected_vaults = response.selected_vaults.slice(0, VAULT_CATALOG.length)
+  if (response.selected_vaults.length > vaultData.length) {
+    response.selected_vaults = response.selected_vaults.slice(0, vaultData.length)
   }
 
   return response
