@@ -1,0 +1,57 @@
+// settingsStore.js
+// Persistence for non-agent settings (agent config stays in yv_agent_settings).
+// Each setting maps to its own yv_* localStorage key. Plus a tiny i18n table.
+
+export const SETTINGS_KEYS = {
+  modelPreference: 'yv_model_preference',   // 'flash' | 'pro' | 'venice'
+  veniceApiKey: 'yv_venice_api_key',
+  tavilyApiKey: 'yv_tavily_api_key',
+  vaultDataSource: 'yv_vault_data_source',  // 'live' | 'static'
+  marketContext: 'yv_market_context',       // boolean
+  alertSeverity: 'yv_alert_severity',        // { high, medium, low }
+  alertPersistence: 'yv_alert_persistence', // 'session' | 'permanent'
+  alertBanner: 'yv_alert_banner',           // boolean
+  timestampFormat: 'yv_timestamp_format',   // 'relative' | 'absolute'
+  language: 'yv_language',                  // 'en' | 'id'
+}
+
+export const SETTINGS_DEFAULTS = {
+  modelPreference: 'flash',
+  veniceApiKey: '',
+  tavilyApiKey: '',
+  vaultDataSource: 'live',
+  marketContext: true,
+  alertSeverity: { high: true, medium: true, low: false },
+  alertPersistence: 'session',
+  alertBanner: true,
+  timestampFormat: 'relative',
+  language: 'en',
+}
+
+const parse = (raw, def) => {
+  if (raw == null) return def
+  try { return JSON.parse(raw) } catch { return raw } // bare strings stored unquoted
+}
+
+export function loadSettings() {
+  const out = { ...SETTINGS_DEFAULTS }
+  for (const k in SETTINGS_KEYS) {
+    const raw = localStorage.getItem(SETTINGS_KEYS[k])
+    if (raw != null) out[k] = parse(raw, SETTINGS_DEFAULTS[k])
+  }
+  return out
+}
+
+export function saveSetting(key, value) {
+  const sk = SETTINGS_KEYS[key]
+  if (!sk) return
+  localStorage.setItem(sk, typeof value === 'string' ? value : JSON.stringify(value))
+}
+
+// Minimal i18n — UI labels only, never AI reasoning output.
+export const I18N = {
+  en: { depositAmount: 'Deposit amount', getRecommendation: 'Get Recommendation', strategy: 'AI Strategy', connect: 'Connect & Upgrade', skills: 'Review Skills', permission: 'Grant Permission', execute: 'Auto-Execute', done: 'Complete' },
+  id: { depositAmount: 'Jumlah deposit', getRecommendation: 'Dapatkan Rekomendasi', strategy: 'Strategi AI', connect: 'Hubungkan & Upgrade', skills: 'Tinjau Skill', permission: 'Beri Izin', execute: 'Eksekusi Otomatis', done: 'Selesai' },
+}
+
+export const t = (lang, key) => (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key

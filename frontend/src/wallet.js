@@ -43,6 +43,15 @@ export function getAccount() {
   return account
 }
 
+/** Prompt MetaMask to switch to Ethereum Sepolia. */
+export async function switchToSepolia() {
+  if (!window.ethereum) throw new Error('MetaMask Flask not found.')
+  await window.ethereum.request({
+    method: 'wallet_switchEthereumChain',
+    params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+  })
+}
+
 /**
  * Grant ERC-7715 permission for AgentVaultDepositor via MetaMask SAK.
  * EIP-7702 is handled internally by SAK — do NOT call eth_signAuthorization.

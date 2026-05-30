@@ -18,7 +18,7 @@ import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio,
 } from './tweaks-panel.jsx';
 
-import { connectWallet, requestERC7715Permission, signSiweForVenice } from './wallet.js';
+import { connectWallet, requestERC7715Permission, signSiweForVenice, switchToSepolia } from './wallet.js';
 import { generateStrategy } from './venice.js';
 import { OrchestratorAgent } from './orchestrator.js';
 import { makeAgentId } from './worker.js';
@@ -28,9 +28,13 @@ import HistoryPanel from './components/HistoryPanel.jsx';
 import { saveTransaction } from './history.js';
 import { startBackgroundAgent, stopBackgroundAgent, updateAgentConfig, onAgentEvent, harvestVault, emergencyWithdraw } from './agents/agentController.js';
 import AgentDashboard from './components/AgentDashboard.jsx';
+import HomePage from './components/HomePage.jsx';
+import SettingsPage from './components/SettingsPage.jsx';
+import { loadSettings, saveSetting } from './settingsStore.js';
+import { clearUserSkill } from './skillLoader.js';
 
 /* ---------- Background agent settings (localStorage: yv_agent_settings) ---------- */
-const AGENT_SETTINGS_DEFAULTS = { autoHarvest: false, harvestMinUsdc: 1.0, apyDropPct: 20, rebalanceThresholdPct: 1.5, emergencyFull: false, emergencyPct: 50, riskMonitoring: true };
+const AGENT_SETTINGS_DEFAULTS = { autoHarvest: false, harvestMinUsdc: 1.0, apyDropPct: 20, rebalanceThresholdPct: 1.5, emergencyFull: false, emergencyPct: 50, riskMonitoring: true, positionInterval: 5, apyInterval: 10, riskInterval: 15, rewardInterval: 5 };
 const loadAgentSettings = () => {
   try { return { ...AGENT_SETTINGS_DEFAULTS, ...JSON.parse(localStorage.getItem('yv_agent_settings') || '{}') }; }
   catch { return { ...AGENT_SETTINGS_DEFAULTS }; }
@@ -327,7 +331,8 @@ const App = () => {
   // stage: 'strategy' | 'connect' | 'skills' | 'permission' | 'execute' | 'done'
   const [stage, setStage] = useS("strategy");
   const [furthest, setFurthest] = useS(0); // furthest step index reached → rail can navigate to visited steps
-  const [view, setView] = useS("flow"); // 'flow' | 'history' — left sidebar nav
+  const [view, setView] = useS("home"); // 'home' | 'flow' | 'agent' | 'history' | 'settings' — left sidebar nav
+  const [language, setLanguage] = useS(() => loadSettings().language); // UI i18n (labels only)
   const [amount, setAmount] = useS("100");
   const [risk, setRisk] = useS("med");
   const [devApiKey, setDevApiKey] = useS("");
@@ -877,6 +882,20 @@ const App = () => {
     );
   };
 
+  /* ----- Settings handlers ----- */
+  const handleLanguageChange = (lang) => { setLanguage(lang); saveSetting("language", lang); };
+  const handleDisconnect = () => {
+    stopBackgroundAgent();
+    setRealAddress(null); setConnectPhase("idle"); setPermActive(false); setPermContext(null); setVeniceAuth(null);
+    addLog({ event: "PermissionRevoked", meta: "wallet disconnected · session cleared" });
+  };
+  const handleSwitchNetwork = async () => {
+    try { await switchToSepolia(); addLog({ event: "Connected", meta: "network · Sepolia" }); }
+    catch (e) { addLog({ event: "AgentFailed", meta: `switch network failed: ${e.message}` }); }
+  };
+  const handleResetAgentSettings = () => { setAgentSettings({ ...AGENT_SETTINGS_DEFAULTS }); setAgentEnabled(true); };
+  const handleResetSkill = () => { clearUserSkill(); setSkillSource("default"); };
+
   /* ----- Step rail: navigate back to a completed step (state preserved) ----- */
   const goBack = (id) => {
     if (id === "strategy") setStrategyPhase("ready");
@@ -983,7 +1002,43 @@ const App = () => {
       <Sidebar view={view} onNavigate={setView} />
       <main className="main">
         <TopBar walletConnected={walletPhase !== "none"} onReset={handleAgain} />
-        {view === "history" ? (
+        {view === "home" ? (
+          <HomePage
+            userAddress={realAddress}
+            positions={agentData.positions}
+            alerts={agentData.alerts}
+            vaultMeta={agentVaultMeta}
+            lastUpdated={agentData.lastUpdated}
+            agentActive={agentEnabled && stage === "done"}
+            autoHarvest={agentSettings.autoHarvest}
+            onConnect={handleConnect}
+            onStartStrategy={handleAgain}
+            onOpenAgent={() => setView("agent")}
+            onViewHistory={() => setView("history")}
+            onWithdrawSuccess={handleWithdrawSuccess}
+          />
+        ) : view === "settings" ? (
+          <SettingsPage
+            userAddress={realAddress}
+            walletPhase={walletPhase}
+            permActive={permActive}
+            permissionCount={strategy?.agents?.length || 0}
+            agentEnabled={agentEnabled}
+            setAgentEnabled={setAgentEnabled}
+            agentSettings={agentSettings}
+            setAgentSettings={setAgentSettings}
+            skillSource={skillSource}
+            language={language}
+            onLanguageChange={handleLanguageChange}
+            onChangeSkill={() => setSkillDrawerOpen(true)}
+            onResetSkill={handleResetSkill}
+            onResetAgentSettings={handleResetAgentSettings}
+            onConnect={handleConnect}
+            onDisconnect={handleDisconnect}
+            onSwitchNetwork={handleSwitchNetwork}
+            onRevoke={handleRevoke}
+          />
+        ) : view === "history" ? (
           <HistoryPanel />
         ) : view === "agent" ? (
           <div className="stage">
@@ -1009,7 +1064,7 @@ const App = () => {
           </div>
         ) : (
           <>
-            <StepRail stage={stage} furthest={furthest} onStepClick={goBack} />
+            <StepRail stage={stage} furthest={furthest} onStepClick={goBack} lang={language} />
             <div className="stage" key={`${stage}-${strategyPhase}`}>
               {renderStage()}
             </div>

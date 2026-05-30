@@ -2,6 +2,7 @@
    YIELD VIBING — v2 shared components & icons
    ============================================ */
 import React from 'react';
+import { t } from './settingsStore.js';
 
 /* ---------- Icons (Lucide-style, stroke 1.5) ---------- */
 const Icon = ({ name, size = 16, className = "" }) => {
@@ -37,11 +38,11 @@ const Icon = ({ name, size = 16, className = "" }) => {
 /* ---------- Sidebar (minimal, no active-bar gimmick) ---------- */
 const Sidebar = ({ view = "flow", onNavigate }) => {
   const items = [
-    { key: "home", icon: "home" },
+    { key: "home", icon: "home", view: "home" },
     { key: "vaults", icon: "grid", view: "flow" },
     { key: "agent", icon: "network", view: "agent" },
     { key: "history", icon: "layers", view: "history" },
-    { key: "settings", icon: "settings" },
+    { key: "settings", icon: "settings", view: "settings" },
   ];
   return (
     <nav className="sidebar" aria-label="Primary">
@@ -106,7 +107,7 @@ const STEPS = [
   { id: "done", label: "Complete" },
 ];
 
-const StepRail = ({ stage, furthest = 0, onStepClick }) => {
+const StepRail = ({ stage, furthest = 0, onStepClick, lang = "en" }) => {
   const idx = STEPS.findIndex((s) => s.id === stage);
   return (
     <div className="step-rail" role="progressbar" aria-valuenow={idx + 1} aria-valuemax={STEPS.length}>
@@ -124,7 +125,7 @@ const StepRail = ({ stage, furthest = 0, onStepClick }) => {
             title={clickable ? `Ke ${s.label}` : undefined}
           >
             <span className="num">{String(i + 1).padStart(2, "0")}</span>
-            <span>{s.label}</span>
+            <span>{t(lang, s.id)}</span>
           </div>
         );
       })}
