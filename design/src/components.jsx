@@ -43,7 +43,9 @@ const Sidebar = () => {
   ];
   return (
     <nav className="sidebar" aria-label="Primary">
-      <div className="sb-logo" title="vibing/farmer">v/</div>
+      <div className="sb-logo" title="vibing/farmer">
+        <img src="/vibing_farmer.logo.svg" alt="logo" style={{ width: 18, height: 18 }} />
+      </div>
       {items.map((it) => (
         <button key={it.key} className={`sb-item ${it.active ? "active" : ""}`} title={it.key} aria-label={it.key}>
           <Icon name={it.icon} />
