@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { withdrawFromVault } from '../agents/agentController.js'
 import { saveTransaction } from '../history.js'
 import { readVaultDepositTimestamp } from '../wallet.js'
+import { loadSettings, t } from '../settingsStore.js'
 
 const fmtDur = (secAgo) => {
   if (!secAgo || secAgo <= 0) return '—'
@@ -22,6 +23,7 @@ const Row = ({ k, v, color }) => (
 const pctBtn = { appearance: 'none', flex: 1, border: '.5px solid rgba(255,255,255,.18)', borderRadius: 5, background: 'rgba(255,255,255,.06)', color: 'inherit', font: 'inherit', fontSize: 11, padding: '5px 0', cursor: 'pointer' }
 
 export default function WithdrawModal({ vault, balance, unclaimedRewards = 0, userAddress, onClose, onSuccess }) {
+  const { language: lang } = loadSettings()
   const balUsdc = Number(balance || 0) / 1e6
   const rewardsUsdc = Number(unclaimedRewards || 0) / 1e6
   const [amount, setAmount] = useState(balUsdc.toFixed(2))
@@ -64,7 +66,7 @@ export default function WithdrawModal({ vault, balance, unclaimedRewards = 0, us
     <div className="modal-backdrop" onClick={() => status !== 'loading' && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="withdraw-title" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-eyebrow">withdraw · 1Shot relayer</div>
-        <h3 className="modal-title" id="withdraw-title">Withdraw from {vault.name}</h3>
+        <h3 className="modal-title" id="withdraw-title">{t(lang, 'withdraw')} from {vault.name}</h3>
 
         <div className="act-meta" style={{ fontSize: 11, margin: '8px 0 6px' }}>Available: <span className="mono">{balUsdc.toFixed(2)} USDC</span></div>
 
@@ -97,7 +99,7 @@ export default function WithdrawModal({ vault, balance, unclaimedRewards = 0, us
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={status === 'loading'}>Cancel</button>
           <button ref={confirmRef} className="btn btn-primary" onClick={handleConfirm} disabled={!valid || status !== 'idle'}>
-            {status === 'idle' ? 'Confirm Withdraw' : status === 'loading' ? 'Withdrawing…' : 'Done ✓'}
+            {status === 'idle' ? t(lang, 'withdraw') : status === 'loading' ? 'Withdrawing…' : 'Done ✓'}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@
    ============================================ */
 import React from 'react';
 import { Icon } from './components.jsx';
+import { loadSettings, t } from './settingsStore.js';
 
 const shortAddr = (a) => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
 const fakeHash = () => "0x" + Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
@@ -17,6 +18,7 @@ const RISK_OPTIONS = [
    01a — INPUT
    ============================================ */
 const InputScreen = ({ amount, setAmount, risk, setRisk, onSubmit }) => {
+  const { language: lang } = loadSettings()
   const valid = Number(amount) > 0 && risk;
   return (
     <section className="card enter">
@@ -38,7 +40,7 @@ const InputScreen = ({ amount, setAmount, risk, setRisk, onSubmit }) => {
 
       <div className="amount-block">
         <div>
-          <div className="amount-label">Jumlah deposit</div>
+          <div className="amount-label">{t(lang, 'depositAmount')}</div>
           <div className="amount-input-row">
             <input
               type="number"
@@ -53,7 +55,7 @@ const InputScreen = ({ amount, setAmount, risk, setRisk, onSubmit }) => {
         </div>
 
         <div>
-          <div className="amount-label">Risk profile · juga nentuin jumlah agent</div>
+          <div className="amount-label">{t(lang, 'riskLevel')}</div>
           <div className="risk-row" role="radiogroup">
             {RISK_OPTIONS.map((r) => (
               <button
@@ -77,7 +79,7 @@ const InputScreen = ({ amount, setAmount, risk, setRisk, onSubmit }) => {
           Venice AI · privacy-first · <b>no data retention</b>
         </div>
         <button className="btn btn-primary btn-lg" disabled={!valid} onClick={onSubmit}>
-          Cari strategy <Icon name="arrow" size={14} />
+          {t(lang, 'getReco')} <Icon name="arrow" size={14} />
         </button>
       </div>
     </section>

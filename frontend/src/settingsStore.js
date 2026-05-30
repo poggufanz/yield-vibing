@@ -50,8 +50,22 @@ export function saveSetting(key, value) {
 
 // Minimal i18n — UI labels only, never AI reasoning output.
 export const I18N = {
-  en: { depositAmount: 'Deposit amount', getRecommendation: 'Get Recommendation', strategy: 'AI Strategy', connect: 'Connect & Upgrade', skills: 'Review Skills', permission: 'Grant Permission', execute: 'Auto-Execute', done: 'Complete' },
-  id: { depositAmount: 'Jumlah deposit', getRecommendation: 'Dapatkan Rekomendasi', strategy: 'Strategi AI', connect: 'Hubungkan & Upgrade', skills: 'Tinjau Skill', permission: 'Beri Izin', execute: 'Eksekusi Otomatis', done: 'Selesai' },
+  en: {
+    depositAmount: 'Deposit amount', getRecommendation: 'Get Recommendation', getReco: 'Get Recommendation',
+    strategy: 'AI Strategy', connect: 'Connect & Upgrade', skills: 'Review Skills', permission: 'Grant Permission',
+    execute: 'Auto-Execute', done: 'Complete',
+    riskLevel: 'Risk level', connectWallet: 'Connect Wallet', grantPermission: 'Grant Permission',
+    activePositions: 'Active Positions', agentStatus: 'Autonomous Agent', recentActivity: 'Recent Activity',
+    marketPulse: 'Market Pulse', withdraw: 'Withdraw', harvest: 'Harvest', dismiss: 'Dismiss', newStrategy: 'New Strategy',
+  },
+  id: {
+    depositAmount: 'Jumlah deposit', getRecommendation: 'Dapatkan Rekomendasi', getReco: 'Dapatkan Rekomendasi',
+    strategy: 'Strategi AI', connect: 'Hubungkan & Upgrade', skills: 'Tinjau Skill', permission: 'Beri Izin',
+    execute: 'Eksekusi Otomatis', done: 'Selesai',
+    riskLevel: 'Tingkat risiko', connectWallet: 'Hubungkan Wallet', grantPermission: 'Beri Izin',
+    activePositions: 'Posisi Aktif', agentStatus: 'Agen Otonom', recentActivity: 'Aktivitas Terkini',
+    marketPulse: 'Denyut Pasar', withdraw: 'Tarik Dana', harvest: 'Panen', dismiss: 'Abaikan', newStrategy: 'Strategi Baru',
+  },
 }
 
 export const t = (lang, key) => (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key

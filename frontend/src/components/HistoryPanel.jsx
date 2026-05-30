@@ -7,9 +7,13 @@ import { Icon } from '../components.jsx';
 import {
   getTransactions, getStrategies, getReasoningLog, clearAllHistory,
 } from '../history.js';
+import { loadSettings } from '../settingsStore.js';
 
-/* relative timestamp (TASK 6) */
-function timeAgo(ts) {
+function formatTime(ts) {
+  const { timestampFormat } = loadSettings()
+  if (timestampFormat === 'absolute') {
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60_000), h = Math.floor(diff / 3_600_000), d = Math.floor(diff / 86_400_000);
   if (m < 1) return 'just now';
@@ -48,7 +52,7 @@ const TxList = ({ rows }) => {
             <span className="tx-sub mono">{[r.protocol, r.apy ? `${r.apy}% APY` : null, r.workerId || (isWithdraw ? 'manual withdraw' : null)].filter(Boolean).join(' · ')}</span>
           </span>
           <span className="tx-amount mono tnum" style={{ color: isWithdraw ? 'var(--warn)' : 'var(--ok)' }}>{isWithdraw ? '↑' : '↓'} {r.amountUsdc} USDC</span>
-          <span className="tx-age mono">{timeAgo(r.timestamp)}</span>
+          <span className="tx-age mono">{formatTime(r.timestamp)}</span>
         </div>
         );
       })}
@@ -66,7 +70,7 @@ const StratList = ({ rows }) => {
           <div className="hist-card-head">
             <span className="hist-dot" />
             <b>{r.riskLevel} risk · {r.amountUsdc} USDC</b>
-            <span className="hist-age mono">{timeAgo(r.timestamp)}</span>
+            <span className="hist-age mono">{formatTime(r.timestamp)}</span>
           </div>
           <div className="hist-card-meta mono">
             {r.numVaults} vault{r.numVaults === 1 ? '' : 's'} · {r.blendedApy}% blended APY
@@ -90,7 +94,7 @@ const ReasonList = ({ rows }) => {
         <div key={r.id} className="hist-card">
           <div className="hist-card-head">
             <b>{r.vaultName}</b>
-            <span className="hist-age mono">{timeAgo(r.timestamp)}</span>
+            <span className="hist-age mono">{formatTime(r.timestamp)}</span>
           </div>
           <div className="hist-reason">“{r.reasoning}”</div>
           <div className="hist-card-meta mono">

@@ -4,13 +4,18 @@
 import React, { useState, useEffect } from 'react'
 import AgentActionPreview from './AgentActionPreview.jsx'
 import WithdrawModal from './WithdrawModal.jsx'
+import { loadSettings, t } from '../settingsStore.js'
 
 const POSITION_INTERVAL = 5 * 60 * 1000 // mirrors worker INTERVALS.position
 const u = (units) => Number(units || 0) / 1e6
 const fmt = (units) => u(units).toFixed(2)
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '')
-const timeAgo = (ts, now) => {
+const formatTime = (ts, now = Date.now()) => {
   if (!ts) return '—'
+  const { timestampFormat } = loadSettings()
+  if (timestampFormat === 'absolute') {
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
   const s = Math.max(0, Math.floor((now - ts) / 1000))
   return s < 60 ? `${s}s ago` : `${Math.floor(s / 60)} min ago`
 }
@@ -55,7 +60,7 @@ const cardStyle = (color) => ({ borderLeft: `2px solid ${color}`, padding: '8px 
 const btn = { appearance: 'none', border: '.5px solid rgba(255,255,255,.18)', borderRadius: 5, background: 'rgba(255,255,255,.06)', color: 'inherit', font: 'inherit', fontSize: 10.5, padding: '4px 9px', cursor: 'pointer', marginRight: 6, marginTop: 6 }
 const linkBtn = { ...btn, border: 0, background: 'transparent', padding: '4px 0', color: 'var(--text-muted)', textDecoration: 'underline' }
 
-function AlertCard({ alert, onHarvest, onEmergencyWithdraw, onReview, onDismiss }) {
+function AlertCard({ alert, lang = 'en', onHarvest, onEmergencyWithdraw, onReview, onDismiss }) {
   const [why, setWhy] = useState(false)
   const meta = ALERT_META[alert.kind] || { dot: '·', color: 'var(--text-muted)', title: alert.kind }
   const src = alert.sources && alert.sources[0]
@@ -76,10 +81,10 @@ function AlertCard({ alert, onHarvest, onEmergencyWithdraw, onReview, onDismiss 
       )}
 
       <div>
-        {alert.kind === 'harvest_ready' && <button style={btn} onClick={() => onHarvest(alert)}>Harvest now</button>}
+        {alert.kind === 'harvest_ready' && <button style={btn} onClick={() => onHarvest(alert)}>{t(lang, 'harvest')}</button>}
         {alert.kind === 'rebalance_proposal' && <button style={btn} onClick={() => onReview(alert)}>Review</button>}
         {alert.kind === 'risk_alert' && <button style={{ ...btn, borderColor: 'var(--danger)' }} onClick={() => onEmergencyWithdraw(alert)}>Emergency withdraw</button>}
-        <button style={btn} onClick={() => onDismiss(alert.id)}>Dismiss</button>
+        <button style={btn} onClick={() => onDismiss(alert.id)}>{t(lang, 'dismiss')}</button>
       </div>
     </div>
   )
@@ -96,6 +101,14 @@ export default function AgentDashboard({
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  const { alertSeverity, language: lang } = loadSettings()
+  const filteredAlerts = alerts.filter(alert => {
+    if (alert.severity === 'high') return alertSeverity?.high !== false
+    if (alert.severity === 'medium') return alertSeverity?.medium !== false
+    if (alert.severity === 'low') return alertSeverity?.low === true
+    return true
+  })
 
   const posList = Object.entries(positions)
   const apyOf = (addr) => vaultMeta[addr.toLowerCase()]?.apy || 0
@@ -121,7 +134,7 @@ export default function AgentDashboard({
     <div className="panel">
       <style>{`@keyframes yvpulse{0%,100%{opacity:1}50%{opacity:.25}}@media(prefers-reduced-motion:reduce){.yv-pulse{animation:none!important}}`}</style>
       <div className="panel-head">
-        <div className="panel-title">Autonomous Agent</div>
+        <div className="panel-title">{t(lang, 'agentStatus')}</div>
         <span className="panel-meta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span className="yv-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: active ? 'var(--ok)' : 'var(--text-muted)', animation: active ? 'yvpulse 1.6s ease-in-out infinite' : 'none' }} />
@@ -136,7 +149,7 @@ export default function AgentDashboard({
         <div className="mono tnum" style={{ fontSize: 13, marginTop: 2 }}>
           {(totalUnits / 1e6).toFixed(2)} USDC · blended {blendedApy.toFixed(1)}% APY · <span style={{ color: 'var(--ok)' }}>+{(earnedUnits / 1e6).toFixed(2)} earned</span>
         </div>
-        <div style={{ fontSize: 10, opacity: .5, marginTop: 2 }}>Last updated: {timeAgo(lastUpdated, now)}</div>
+        <div style={{ fontSize: 10, opacity: .5, marginTop: 2 }}>Last updated: {formatTime(lastUpdated, now)}</div>
       </div>
 
       {/* CHANGE 2: Enriched positions */}
@@ -144,7 +157,7 @@ export default function AgentDashboard({
       {posList.length === 0 ? (
         <div className="empty" style={{ lineHeight: 1.6 }}>
           No active positions. Start a new strategy to begin farming.
-          {onNewStrategy && <div><button style={{ ...btn, marginLeft: 0 }} onClick={onNewStrategy}>New Strategy</button></div>}
+          {onNewStrategy && <div><button style={{ ...btn, marginLeft: 0 }} onClick={onNewStrategy}>{t(lang, 'newStrategy')}</button></div>}
         </div>
       ) : (
         posList.map(([addr, p]) => {
@@ -169,7 +182,7 @@ export default function AgentDashboard({
                   disabled={!withdrawEnabled}
                   title={withdrawEnabled ? 'Withdraw from this position' : 'Withdraw unavailable during active execution'}
                   onClick={() => setWithdrawVault({ vault: { name: p.vaultName, address: addr, protocol: vaultMeta[addr.toLowerCase()]?.protocol || '', apy }, balance: p.balance, unclaimedRewards: p.unclaimedRewards })}
-                >Withdraw</button>
+                >{t(lang, 'withdraw')}</button>
               </div>
             </div>
           )
@@ -183,13 +196,13 @@ export default function AgentDashboard({
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok)' }} />
           <span>
             All positions healthy<br />
-            Agent checked {posList.length} vault{posList.length === 1 ? '' : 's'} · {timeAgo(lastUpdated, now)}
+            Agent checked {posList.length} vault{posList.length === 1 ? '' : 's'} · {formatTime(lastUpdated, now)}
             {nextCheck && ` · next check in ${fmtRemain(nextCheck - now)}`}
           </span>
         </div>
       ) : (
-        alerts.map((a) => (
-          <AlertCard key={a.id} alert={a} onHarvest={requestHarvest} onEmergencyWithdraw={requestWithdraw} onReview={onReview} onDismiss={onDismiss} />
+        filteredAlerts.map((a) => (
+          <AlertCard key={a.id} alert={a} lang={lang} onHarvest={requestHarvest} onEmergencyWithdraw={requestWithdraw} onReview={onReview} onDismiss={onDismiss} />
         ))
       )}
 

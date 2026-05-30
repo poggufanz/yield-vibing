@@ -3,6 +3,7 @@ import { loadVaultSkill } from './skillLoader.js'
 import { fetchMarketContext } from './marketSearch.js'
 import { fetchDeFiLlamaVaults } from './defiLlama.js'
 import { saveStrategy, saveReasoning } from './history.js'
+import { loadSettings } from './settingsStore.js'
 
 // AI provider priority: Venice x402 → DeepSeek (dev) → hardcoded fallback
 // Venice x402: wallet SIWE auth, pays USDC on Base — no API key needed
@@ -75,11 +76,20 @@ function resolveProvider(veniceAuth, devApiKey) {
  * @param {string|null} params.devApiKey - DeepSeek API key for dev mode
  */
 export async function generateStrategy({ amount, riskLevel, numVaults, veniceAuth, devApiKey, signal }) {
+  const settings = loadSettings()
+  const effectiveTavilyKey = settings.tavilyApiKey || import.meta.env.VITE_TAVILY_API_KEY
+  const useStaticVaults = settings.vaultDataSource === 'static'
+  const marketContextEnabled = settings.marketContext !== false
+
   // Load skill + market context + real vault data ALL IN PARALLEL (no added latency)
   const [skill, marketContext, liveVaults] = await Promise.all([
     loadVaultSkill(),
-    fetchMarketContext(import.meta.env.VITE_TAVILY_API_KEY, riskLevel).catch(() => null),
-    fetchDeFiLlamaVaults().catch(() => null),
+    marketContextEnabled
+      ? fetchMarketContext(effectiveTavilyKey, riskLevel).catch(() => null)
+      : Promise.resolve(null),
+    useStaticVaults
+      ? Promise.resolve(null)
+      : fetchDeFiLlamaVaults().catch(() => null),
   ])
 
   // Real DeFiLlama vaults when available, else the static VAULT_CATALOG
@@ -100,7 +110,8 @@ export async function generateStrategy({ amount, riskLevel, numVaults, veniceAut
 
   const safeNumVaults = Math.min(numVaults, vaultData.length) // fixes high-risk fallback bug
 
-  const provider = resolveProvider(veniceAuth, devApiKey)
+  const effectiveDevKey = devApiKey || settings.veniceApiKey || null
+  const provider = resolveProvider(veniceAuth, effectiveDevKey)
   if (!provider) {
     console.warn('[ai] No provider — using fallback strategy')
     return { ...buildFallbackForParams(amount, safeNumVaults), skillSource: skill.source, marketContextUsed: marketContext !== null, vaultDataSource, vaultsUsed: vaultData }

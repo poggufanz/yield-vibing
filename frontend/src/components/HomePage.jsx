@@ -6,13 +6,17 @@ import WithdrawModal from './WithdrawModal.jsx'
 import { getTransactions } from '../history.js'
 import { fetchDeFiLlamaVaults } from '../defiLlama.js'
 import { VAULT_CATALOG } from '../config.js'
-import { loadSettings } from '../settingsStore.js'
+import { loadSettings, t } from '../settingsStore.js'
 
 const POLL_MS = 10 * 60 * 1000
 const u = (x) => Number(x || 0) / 1e6
 const fmtAmt = (n) => (+Number(n || 0).toFixed(2)).toString()
-const timeAgo = (ts, now = Date.now()) => {
+const formatTime = (ts, now = Date.now()) => {
   if (!ts) return '—'
+  const { timestampFormat } = loadSettings()
+  if (timestampFormat === 'absolute') {
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
   const s = Math.max(0, Math.floor((now - ts) / 1000))
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.floor(s / 60)} min ago`
@@ -95,7 +99,7 @@ export default function HomePage({
           <p className="lede" style={{ margin: '18px auto 0', fontSize: 14 }}>
             Autonomous yield farming. Set permission once — agent farms forever.
           </p>
-          <button className="btn btn-primary" style={{ marginTop: 24 }} onClick={onConnect}>Connect Wallet</button>
+          <button className="btn btn-primary" style={{ marginTop: 24 }} onClick={onConnect}>{t(lang, 'connectWallet')}</button>
           <div className="mono" style={{ marginTop: 20, fontSize: 11, color: 'var(--text-faint)' }}>
             relayer: 1Shot · gas: 0 · network: sepolia
           </div>
@@ -111,7 +115,8 @@ export default function HomePage({
   const mode = autoHarvest ? 'autopilot' : 'co-pilot'
 
   // Alert banner: first unread high/medium risk alert (dismiss is per-session, local state).
-  const bannerEnabled = loadSettings().alertBanner !== false
+  const { alertBanner, language: lang } = loadSettings()
+  const bannerEnabled = alertBanner !== false
   const banner = bannerEnabled && alerts.find((a) => a.kind === 'risk_alert' && (a.severity === 'high' || a.severity === 'medium') && !dismissed.has(a.id))
 
   // Recent activity: transactions + agent events, merged, newest 5.
@@ -196,7 +201,7 @@ export default function HomePage({
 
             {/* ── SECTION 2: Active positions ── */}
             <div style={section}>
-              <SectionHead title="Active Positions" action="+ New Strategy" onAction={onStartStrategy} />
+              <SectionHead title={t(lang, 'activePositions')} action={`+ ${t(lang, 'newStrategy')}`} onAction={onStartStrategy} />
               <div style={{ ...card }}>
                 {posList.map(([addr, p], i) => {
                   const apy = apyOf(addr)
@@ -214,7 +219,7 @@ export default function HomePage({
                           <div style={{ height: '100%', width: `${pct}%`, background: 'var(--ok)', borderRadius: 3 }} />
                         </div>
                         <span className="mono" style={{ fontSize: 10, color: 'var(--text-faint)', minWidth: 32, textAlign: 'right' }}>{pct.toFixed(0)}%</span>
-                        <button style={pillBtn} onClick={() => setWithdrawVault({ vault: { name: p.vaultName, address: addr, protocol: vaultMeta[addr.toLowerCase()]?.protocol || '', apy }, balance: p.balance, unclaimedRewards: p.unclaimedRewards })}>Withdraw</button>
+                        <button style={pillBtn} onClick={() => setWithdrawVault({ vault: { name: p.vaultName, address: addr, protocol: vaultMeta[addr.toLowerCase()]?.protocol || '', apy }, balance: p.balance, unclaimedRewards: p.unclaimedRewards })}>{t(lang, 'withdraw')}</button>
                       </div>
                     </div>
                   )
@@ -224,14 +229,14 @@ export default function HomePage({
 
             {/* ── SECTION 3: Agent status ── */}
             <div style={section}>
-              <SectionHead title="Autonomous Agent" />
+              <SectionHead title={t(lang, 'agentStatus')} />
               <div style={cardPad}>
                 {agentActive ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                       <span style={dot('var(--ok)')} />monitoring · {mode} mode · {posList.length} vault{posList.length === 1 ? '' : 's'} watched
                     </div>
-                    {lastAlert && <div style={{ ...sub, marginTop: 10 }}>Last action: {alertText(lastAlert)} · {timeAgo(lastAlert.timestamp || lastUpdated, now)}</div>}
+                    {lastAlert && <div style={{ ...sub, marginTop: 10 }}>Last action: {alertText(lastAlert)} · {formatTime(lastAlert.timestamp || lastUpdated, now)}</div>}
                     <button style={{ ...linkBtn, marginTop: 12 }} onClick={onOpenAgent}>Open Agent Dashboard →</button>
                   </>
                 ) : (
@@ -247,7 +252,7 @@ export default function HomePage({
 
             {/* ── SECTION 4: Recent activity ── */}
             <div style={section}>
-              <SectionHead title="Recent Activity" action="View all →" onAction={onViewHistory} />
+              <SectionHead title={t(lang, 'recentActivity')} action="View all →" onAction={onViewHistory} />
               <div style={{ ...card }}>
                 {activity.length === 0 ? (
                   <div className="empty" style={{ padding: '14px 18px' }}>No activity yet.</div>
@@ -255,7 +260,7 @@ export default function HomePage({
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 18px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
                     <span className="mono" style={{ color: e.color, width: 14, textAlign: 'center' }}>{e.icon}</span>
                     <span style={{ flex: 1, fontSize: 12.5 }}>{e.text}</span>
-                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>{timeAgo(e.ts, now)}</span>
+                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>{formatTime(e.ts, now)}</span>
                   </div>
                 ))}
               </div>
@@ -264,9 +269,9 @@ export default function HomePage({
             {/* ── SECTION 5: Market pulse ── */}
             <div style={section}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
-                <span style={eyebrow}>Market Pulse</span>
+                <span style={eyebrow}>{t(lang, 'marketPulse')}</span>
                 <span className="mono" style={{ fontSize: 10.5, color: live ? 'var(--ok)' : 'var(--text-faint)' }}>
-                  {live ? `live · DeFiLlama · updated ${timeAgo(pulse.fetchedAt, now)}` : 'cached · DeFiLlama'}
+                  {live ? `live · DeFiLlama · updated ${formatTime(pulse.fetchedAt, now)}` : 'cached · DeFiLlama'}
                 </span>
               </div>
               <div style={{ ...card }}>
