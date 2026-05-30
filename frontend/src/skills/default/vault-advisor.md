@@ -151,3 +151,14 @@ HARD RULES:
 - Never recommend HIGH risk vault to LOW risk user.
 - Never omit capital_size_note for amounts under 1000 USDC.
 - Sum of all allocation values must equal exactly 1.0.
+
+
+## HOW TO USE LIVE MARKET CONTEXT
+
+If a "LIVE MARKET CONTEXT" section appears above the user request:
+- Reference specific market conditions in your reasoning field
+- Adjust risk tier recommendation if market signals suggest caution
+- Example: if market context mentions "yields compressing", explain
+  why conservative vault is better now vs chasing high APY
+- If no market context: reason from static protocol knowledge only
+- Never fabricate market data — only reference what's in the context block

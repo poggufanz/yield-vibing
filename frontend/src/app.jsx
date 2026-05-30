@@ -165,7 +165,7 @@ const ActivityPanel = ({ logs }) => {
   );
 };
 
-const SkillPanel = ({ skillSource, onCustomize }) => {
+const SkillPanel = ({ skillSource, marketLive, onCustomize }) => {
   const custom = skillSource === "user-local" || skillSource === "user-file";
   return (
     <div className="panel">
@@ -178,6 +178,7 @@ const SkillPanel = ({ skillSource, onCustomize }) => {
       </div>
       <div className="skill-sub">
         {custom ? "active · user-defined" : "4 vaults · expert framework"}
+        {marketLive != null && ` · ${marketLive ? "🌐 live market data" : "📚 static context"}`}
       </div>
     </div>
   );
@@ -305,6 +306,7 @@ const App = () => {
   const slowTimerRef = useR(null);
   const [strategy, setStrategy] = useS(null);
   const [skillSource, setSkillSource] = useS("default");
+  const [marketLive, setMarketLive] = useS(null); // Tavily live market context used? null until first generation
   const [skillDrawerOpen, setSkillDrawerOpen] = useS(false);
 
   const [connectPhase, setConnectPhase] = useS("idle");
@@ -390,6 +392,7 @@ const App = () => {
           signal: ctrl.signal,
         });
         setSkillSource(veniceResult.skillSource || "default");
+        setMarketLive(!!veniceResult.marketContextUsed);
         if (veniceResult.generatedBy !== "fallback") {          s = mapVeniceToStrategy(veniceResult, amount, risk);
           addLog({ event: "OrchestratorPlanned", meta: `strategy via ${veniceResult.generatedBy} · ${(veniceResult.strategy_summary || veniceResult.rationale)?.slice(0, 60)}` });
         }
@@ -728,6 +731,7 @@ const App = () => {
     setPermActive(false);
     setPermContext(null);
     setVeniceAuth(null);
+    setMarketLive(null);
     setExecMap({});
     setLogs([]);
     agentMapRef.current = {};
@@ -851,7 +855,7 @@ const App = () => {
         <WalletPanel phase={walletPhase} address={realAddress} />
         <PermissionPanel active={permActive} strategy={strategy} onRevoke={handleRevoke} />
         <ActivityPanel logs={logs} />
-        <SkillPanel skillSource={skillSource} onCustomize={() => setSkillDrawerOpen(true)} />
+        <SkillPanel skillSource={skillSource} marketLive={marketLive} onCustomize={() => setSkillDrawerOpen(true)} />
       </aside>
 
       <SkillDrawer
