@@ -1,6 +1,6 @@
 Created At: 2026-05-30T13:58:52Z
 Completed At: 2026-05-30T13:58:52Z
-File Path: `file:///c:/SharredData/project/competition/yield-vibing/docs/bisnis-dampak-model.md`
+File Path: `file:///c:/SharredData/project/competition/yield-vibing/docs/business-impact-model.md`
 
 # Business Impact & Value Model — Vibing Farmer
 

@@ -190,17 +190,17 @@ agents/                              # Runtime-generated skill + memory files
   memory/
     agent-{n}-memory.json            # Per-agent execution memory
 
-docs/                                # All in Indonesian
-  teknis-arsitektur.md
-  teknis-blockchain-penggunaan.md
-  teknis-keamanan-privasi.md
-  teknis-api-events.md
-  teknis-database.md
-  produk-demo-skenario.md            # Demo script — read before recording
-  produk-fitur-lengkap.md
-  produk-user-stories.md
-  bisnis-dampak-model.md
-  bisnis-roadmap-backlog.md
+docs/                                # All in English
+  technical-architecture.md
+  technical-blockchain-usage.md
+  technical-security-privacy.md
+  technical-api-events.md
+  technical-database.md
+  product-demo-scenario.md            # Demo script — read before recording
+  product-features-complete.md
+  product-user-stories.md
+  business-impact-model.md
+  business-roadmap-backlog.md
   spikes/                            # All 4 spikes ✅ resolved
 ```
 
@@ -365,10 +365,10 @@ All resolved ✅. See `docs/spikes/` for full research.
 ## Key Docs
 
 - [Design system + component spec](DESIGN.md) — read before touching frontend/UI
-- [Architecture + ADRs + NFRs](docs/teknis-arsitektur.md)
-- [On-chain scope + audit trail](docs/teknis-blockchain-penggunaan.md)
-- [Security constraints](docs/teknis-keamanan-privasi.md)
-- [Demo script](docs/produk-demo-skenario.md) — read before recording
+- [Architecture + ADRs + NFRs](docs/technical-architecture.md)
+- [On-chain scope + audit trail](docs/technical-blockchain-usage.md)
+- [Security constraints](docs/technical-security-privacy.md)
+- [Demo script](docs/product-demo-scenario.md) — read before recording
 - MetaMask Smart Accounts Kit: https://docs.metamask.io/wallet/smart-accounts/
 - EIP-7702: https://eips.ethereum.org/EIPS/eip-7702
 - ERC-7715: https://eips.ethereum.org/EIPS/eip-7715
